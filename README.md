@@ -1,3 +1,9 @@
+# xf说明
+1.网络有调整
+2.roi有调整；修正resize拉伸bug
+3.imagepreview用于查看unet输入图像情况
+4.noROI用于不做lung mask，代替segment..ROI.py文件功能
+
 # DSB3Tutorial
 
 This code is the companion for the tutorial located at https://www.kaggle.com/c/data-science-bowl-2017#tutorial
