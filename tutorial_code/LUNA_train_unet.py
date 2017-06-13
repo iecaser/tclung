@@ -15,11 +15,12 @@ from keras import backend as K
 working_path = r"/home/soffo/Documents/codes/DSB3Tutorial/tutorial_code/minidata/tutorial/"
 # working_path = r"/media/soffo/MEDIA/tcdata/val/"
 # working_path = "/media/soffo/本地磁盘/tc/val/tutorial/"
+working_path = "/media/soffo/本地磁盘/tc/train/tutorial/part1/"
 
 # 待读取文件前缀（配合ROI操作之后）
 # pre = 'noROI'
 # pre = ''
-# pre = 'xf'
+pre = 'xf'
 # pre = 'cj'
 K.set_image_dim_ordering('th')  # Theano dimension ordering in this code
 
@@ -150,6 +151,7 @@ def train(use_existing=False):
     imgs_train = np.load(working_path + pre + "trainImages.npy").astype(np.float32)
     imgs_mask_train = np.load(working_path + pre + "trainMasks.npy").astype(np.float32)
 
+    # 注意这里归一化问题：单张图还是数据集的归一化，待考证
     mean = np.mean(imgs_train)  # mean for data centering
     std = np.std(imgs_train)  # std for data normalization
     imgs_train -= mean  # images should already be standardized, but just in case
@@ -179,7 +181,7 @@ def train(use_existing=False):
     model_checkpoint = ModelCheckpoint('unet.hdf5', monitor='loss', save_best_only=True)
     tbCallBack = TensorBoard(log_dir='./logs', histogram_freq=1, write_graph=True, \
                              write_images=True, embeddings_freq=1)
-    model.fit(imgs_train, imgs_mask_train, batch_size=2, nb_epoch=200, verbose=1, shuffle=True,
+    model.fit(imgs_train, imgs_mask_train, batch_size=2, nb_epoch=20, verbose=1, shuffle=True,
               callbacks=[model_checkpoint])
 
     # 其实return的没啥卵用
@@ -199,9 +201,26 @@ def predict():
     imgs_mask_test = np.ndarray([num_test, 1, 512, 512], dtype=np.float32)
     for i in range(num_test):
         imgs_mask_test[i] = model.predict([imgs_test[i:i + 1]], verbose=1)[0]
-        print(imgs_mask_test[i][0])
+        # print(imgs_mask_test[i][0])
+        plt.subplots()
+        plt.subplot(121)
+        plt.title('original image')
+        plt.imshow(imgs_test[i][0])
+
+        plt.subplot(243)
+        plt.title('labeled node mask')
+        plt.imshow(imgs_mask_test_true[i][0])
+
+        plt.subplot(244)
+        plt.imshow(imgs_test[i][0]*imgs_mask_test_true[i][0])
+
+        plt.subplot(247)
+        plt.title('predicted node mask')
         plt.imshow(imgs_mask_test[i][0])
-        plt.colorbar()
+
+        plt.subplot(248)
+        plt.imshow(imgs_test[i][0]*imgs_mask_test[i][0])
+        # plt.colorbar()
         plt.show()
 
     np.save('masksTestPredicted.npy', imgs_mask_test)
@@ -213,6 +232,6 @@ def predict():
 
 
 if __name__ == '__main__':
-    train(use_existing=False)
+    # train(use_existing=False)
     # train(use_existing=True)
     predict()

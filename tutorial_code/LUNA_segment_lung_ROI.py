@@ -6,10 +6,12 @@ from skimage.transform import resize
 from glob import glob
 import matplotlib.pyplot as plt
 
-working_path = "/media/soffo/本地磁盘/tc/val/tutorial/"
-working_path = "/home/soffo/Documents/codes/DSB3Tutorial/tutorial_code/minidata/tutorial/"
+working_path = "/media/soffo/本地磁盘/tc/val/tutorial/part1/"
+working_path = "/media/soffo/本地磁盘/tc/train/tutorial/part1/"
+# working_path = "/home/soffo/Documents/codes/DSB3Tutorial/tutorial_code/minidata/tutorial/"
 # working_path = "/media/soffo/MEDIA/tcdata/tutorial/"
 file_list = glob(working_path + "images_*.npy")
+ifplot = False
 
 for img_file in file_list:
     # I ran into an error when using Kmean on np.float16, so I'm using np.float64 here
@@ -177,6 +179,11 @@ for fname in file_list:
                 min_row -= overCut
         else:
             max_col = min_col + height
+            # 为保证方形不拉伸
+            overCut = max_col - 512
+            if overCut > 0:
+                max_col -= overCut
+                min_col -= overCut
         # 
         # cropping the image down to the bounding box for all regions
         # (there's probably an skimage command that can do this in one line)
@@ -203,18 +210,19 @@ for fname in file_list:
             new_node_mask = resize(node_mask[min_row:max_row, min_col:max_col], [512, 512])
             new_node_mask[new_node_mask != 0] = 1
             # 做图修改
-            plt.subplots()
-            plt.subplot(131)
-            # plt.imshow(imgxf)
-            plt.imshow(new_img)
-            plt.colorbar()
-            plt.subplot(132)
-            # plt.imshow(maskxf)
-            plt.imshow(new_node_mask)
-            plt.colorbar()
-            plt.subplot(133)
-            plt.hist(new_img.flatten())
-            plt.show()
+            if ifplot:
+                plt.subplots()
+                plt.subplot(131)
+                # plt.imshow(imgxf)
+                plt.imshow(new_img)
+                plt.colorbar()
+                plt.subplot(132)
+                # plt.imshow(maskxf)
+                plt.imshow(new_node_mask)
+                plt.colorbar()
+                plt.subplot(133)
+                plt.hist(new_img.flatten())
+                plt.show()
 
             # 将ROI后的图片和nodeMask append 到list
             out_images.append(new_img)
