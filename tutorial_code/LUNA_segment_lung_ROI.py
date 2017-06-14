@@ -6,8 +6,9 @@ from skimage.transform import resize
 from glob import glob
 import matplotlib.pyplot as plt
 
-working_path = "/media/soffo/本地磁盘/tc/val/tutorial/part1/"
-working_path = "/media/soffo/本地磁盘/tc/train/tutorial/part1/"
+# working_path = "/media/soffo/本地磁盘/tc/train/tutorial/part2/"
+working_path = "/media/soffo/本地磁盘/tc/train/tutorial/part2/"
+working_path = "/media/soffo/本地磁盘/tc/val/tutorial/"
 # working_path = "/home/soffo/Documents/codes/DSB3Tutorial/tutorial_code/minidata/tutorial/"
 # working_path = "/media/soffo/MEDIA/tcdata/tutorial/"
 file_list = glob(working_path + "images_*.npy")
@@ -194,42 +195,48 @@ for fname in file_list:
         # maskxf = imgxf.copy()
         # maskxf[min_row:max_row, min_col:max_col] = node_mask[min_row:max_row, min_col:max_col]
         # imgxf[min_row:max_row, min_col:max_col]=img
-        if max_row - min_row < 5 or max_col - min_col < 5:  # skipping all images with no god regions
+
+        # 这里的try是因为lungmask_0111_0060.npy报错，经imagepreview查看
+        # 该lung分割完全错误，没有debug具体引起错误原因，基于该样本错误原因，
+        # 暂采取去除“分割”不好的样本原则。
+        try:
+            if max_row - min_row < 5 or max_col - min_col < 5:  # skipping all images with no god regions
+                pass
+            else:
+                # moving range to -1 to 1 to accomodate the resize function
+                mean = np.mean(img)
+                img = img - mean
+                min = np.min(img)
+                max = np.max(img)
+                img = img / (max - min)
+                # 这一步将小图（只有感兴趣区域所以小）放大成512*512的图
+                # ROI的拉伸
+                new_img = resize(img, [512, 512])
+                # nodeMask按照相同的裁剪方式（孔位置会对应缩放）
+                new_node_mask = resize(node_mask[min_row:max_row, min_col:max_col], [512, 512])
+                new_node_mask[new_node_mask != 0] = 1
+                # 做图修改
+                if ifplot:
+                    plt.subplots()
+                    plt.subplot(131)
+                    # plt.imshow(imgxf)
+                    plt.imshow(new_img)
+                    plt.colorbar()
+                    plt.subplot(132)
+                    # plt.imshow(maskxf)
+                    plt.imshow(new_node_mask)
+                    plt.colorbar()
+                    plt.subplot(133)
+                    plt.hist(new_img.flatten())
+                    plt.show()
+
+                # 将ROI后的图片和nodeMask append 到list
+                out_images.append(new_img)
+                # out_images.append(imgxf)
+                out_nodemasks.append(new_node_mask)
+                # out_nodemasks.append(maskxf)
+        except:
             pass
-        else:
-            # moving range to -1 to 1 to accomodate the resize function
-            mean = np.mean(img)
-            img = img - mean
-            min = np.min(img)
-            max = np.max(img)
-            img = img / (max - min)
-            # 这一步将小图（只有感兴趣区域所以小）放大成512*512的图
-            # ROI的拉伸
-            new_img = resize(img, [512, 512])
-            # nodeMask按照相同的裁剪方式（孔位置会对应缩放）
-            new_node_mask = resize(node_mask[min_row:max_row, min_col:max_col], [512, 512])
-            new_node_mask[new_node_mask != 0] = 1
-            # 做图修改
-            if ifplot:
-                plt.subplots()
-                plt.subplot(131)
-                # plt.imshow(imgxf)
-                plt.imshow(new_img)
-                plt.colorbar()
-                plt.subplot(132)
-                # plt.imshow(maskxf)
-                plt.imshow(new_node_mask)
-                plt.colorbar()
-                plt.subplot(133)
-                plt.hist(new_img.flatten())
-                plt.show()
-
-            # 将ROI后的图片和nodeMask append 到list
-            out_images.append(new_img)
-            # out_images.append(imgxf)
-            out_nodemasks.append(new_node_mask)
-            # out_nodemasks.append(maskxf)
-
 num_images = len(out_images)
 #
 #  Writing out images and masks as 1 channel arrays for input into network

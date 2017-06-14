@@ -10,12 +10,12 @@ from keras.optimizers import SGD
 from keras.callbacks import ModelCheckpoint, LearningRateScheduler, TensorBoard
 from keras import backend as K
 
-
 # 设置工作路径
-working_path = r"/home/soffo/Documents/codes/DSB3Tutorial/tutorial_code/minidata/tutorial/"
+# working_path = r"/home/soffo/Documents/codes/DSB3Tutorial/tutorial_code/minidata/tutorial/"
 # working_path = r"/media/soffo/MEDIA/tcdata/val/"
 # working_path = "/media/soffo/本地磁盘/tc/val/tutorial/"
 working_path = "/media/soffo/本地磁盘/tc/train/tutorial/part1/"
+# working_path = "/media/soffo/本地磁盘/tc/train/tutorial/part2/"
 
 # 待读取文件前缀（配合ROI操作之后）
 # pre = 'noROI'
@@ -40,6 +40,7 @@ def dice_coef(y_true, y_pred):
     # 模仿precision-recall方式修改loss
     return ((1.0 + beta ** 2) * intersection) / ((beta ** 2) * (K.sum(y_true_f) + K.sum(y_pred_f) + smooth))
 
+
 # 貌似没什么卵用
 def dice_coef_np(y_true, y_pred):
     y_true_f = y_true.flatten()
@@ -54,6 +55,7 @@ def dice_coef_loss(y_true, y_pred):
     # return 1 - dice_coef_np(y_true, y_pred)
     # 更正loss为0-1之间数值
     return 1 - dice_coef(y_true, y_pred)
+
 
 def get_unet():
     inputs = Input((1, img_rows, img_cols))
@@ -99,6 +101,7 @@ def get_unet():
     model.compile(optimizer=Adam(lr=1.0e-5), loss=dice_coef_loss, metrics=[dice_coef, 'accuracy'])
     return model
 
+
 # 大些的网络
 def get_unet_():
     inputs = Input((1, img_rows, img_cols))
@@ -143,6 +146,7 @@ def get_unet_():
     model.compile(optimizer=Adam(lr=1.0e-5), loss=dice_coef_loss, metrics=[dice_coef, 'accuracy'])
     return model
 
+
 # use_existing参数为是否利用已有权值训练网络
 def train(use_existing=False):
     print('-' * 30)
@@ -150,7 +154,8 @@ def train(use_existing=False):
     print('-' * 30)
     imgs_train = np.load(working_path + pre + "trainImages.npy").astype(np.float32)
     imgs_mask_train = np.load(working_path + pre + "trainMasks.npy").astype(np.float32)
-
+    # imgs_test = np.load("/media/soffo/本地磁盘/tc/val/tutorial/" + pre + "trainImages.npy").astype(np.float32)
+    # imgs_mask_test_true = np.load("/media/soffo/本地磁盘/tc/val/tutorial/" + pre + "trainMasks.npy").astype(np.float32)
     # 注意这里归一化问题：单张图还是数据集的归一化，待考证
     mean = np.mean(imgs_train)  # mean for data centering
     std = np.std(imgs_train)  # std for data normalization
@@ -163,7 +168,7 @@ def train(use_existing=False):
     print('Creating and compiling model...')
     print('-' * 30)
     # model = get_unet_()           # 大网络训练
-    model = get_unet()              # 小网络训练
+    model = get_unet()  # 小网络训练
     if use_existing:
         model.load_weights('./unet.hdf5')
     # 
@@ -178,10 +183,11 @@ def train(use_existing=False):
     print('Fitting model...')
     print('-' * 30)
 
-    model_checkpoint = ModelCheckpoint('unet.hdf5', monitor='loss', save_best_only=True)
-    tbCallBack = TensorBoard(log_dir='./logs', histogram_freq=1, write_graph=True, \
-                             write_images=True, embeddings_freq=1)
+    model_checkpoint = ModelCheckpoint('unet.hdf5', monitor='val_loss', save_best_only=True)
+    # tbCallBack = TensorBoard(log_dir='./logs', histogram_freq=1, write_graph=True, \
+    #                          write_images=True, embeddings_freq=1)
     model.fit(imgs_train, imgs_mask_train, batch_size=2, nb_epoch=20, verbose=1, shuffle=True,
+              # callbacks=[model_checkpoint], validation_data=[imgs_test, imgs_mask_test_true])
               callbacks=[model_checkpoint])
 
     # 其实return的没啥卵用
@@ -212,14 +218,14 @@ def predict():
         plt.imshow(imgs_mask_test_true[i][0])
 
         plt.subplot(244)
-        plt.imshow(imgs_test[i][0]*imgs_mask_test_true[i][0])
+        plt.imshow(imgs_test[i][0] * imgs_mask_test_true[i][0])
 
         plt.subplot(247)
         plt.title('predicted node mask')
         plt.imshow(imgs_mask_test[i][0])
 
         plt.subplot(248)
-        plt.imshow(imgs_test[i][0]*imgs_mask_test[i][0])
+        plt.imshow(imgs_test[i][0] * imgs_mask_test[i][0])
         # plt.colorbar()
         plt.show()
 
@@ -233,5 +239,5 @@ def predict():
 
 if __name__ == '__main__':
     # train(use_existing=False)
-    # train(use_existing=True)
+    train(use_existing=True)
     predict()

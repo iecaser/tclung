@@ -69,10 +69,12 @@ Returns uint16 version
 # Getting list of image files
 # luna_path = r"/media/soffo/MEDIA/tcdata/"
 luna_path = r"/media/soffo/本地磁盘/tc/val/"
-luna_path = r"/media/soffo/本地磁盘/tc/train/"
+# luna_path = r"/media/soffo/本地磁盘/tc/train/"
 # luna_path = r"/home/soffo/Documents/codes/DSB3Tutorial/tutorial_code/minidata/"
 luna_subset_path = luna_path + 'data/part2/'
 output_path = luna_path + 'tutorial/part2/'
+luna_subset_path = luna_path + 'data/'
+output_path = luna_path + 'tutorial/'
 file_list = glob(luna_subset_path + "*.mhd")
 
 
@@ -88,8 +90,8 @@ def get_filename(file_list, case):
 
 #
 # The locations of the nodes
-df_node = pd.read_csv(luna_path + "csv/train/annotations.csv")
-# df_node = pd.read_csv(luna_path + "csv/val/annotations.csv")
+# df_node = pd.read_csv(luna_path + "csv/train/annotations.csv")
+df_node = pd.read_csv(luna_path + "csv/val/annotations.csv")
 df_node["file"] = df_node["seriesuid"].map(lambda file_name: get_filename(file_list, file_name))
 df_node = df_node.dropna()
 
