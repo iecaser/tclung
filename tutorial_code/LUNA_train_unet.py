@@ -10,13 +10,6 @@ from keras.optimizers import SGD
 from keras.callbacks import ModelCheckpoint, LearningRateScheduler, TensorBoard
 from keras import backend as K
 
-# 设置工作路径
-# working_path = r"/home/soffo/Documents/codes/DSB3Tutorial/tutorial_code/minidata/tutorial/"
-# working_path = r"/media/soffo/MEDIA/tcdata/val/"
-# working_path = "/media/soffo/本地磁盘/tc/val/tutorial/"
-working_path = "/media/soffo/本地磁盘/tc/train/tutorial/part1/"
-# working_path = "/media/soffo/本地磁盘/tc/train/tutorial/part2/"
-
 # 待读取文件前缀（配合ROI操作之后）
 # pre = 'noROI'
 # pre = ''
@@ -38,15 +31,14 @@ def dice_coef(y_true, y_pred):
     # beta = 1
     return (2. * intersection + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
     # 模仿precision-recall方式修改loss
-    return ((1.0 + beta ** 2) * intersection) / ((beta ** 2) * (K.sum(y_true_f) + K.sum(y_pred_f) + smooth))
+    # return ((1.0 + beta ** 2) * intersection) / ((beta ** 2) * (K.sum(y_true_f) + K.sum(y_pred_f) + smooth))
 
 
-# 貌似没什么卵用
+# 用于predict计算的
 def dice_coef_np(y_true, y_pred):
     y_true_f = y_true.flatten()
     y_pred_f = y_pred.flatten()
-    y_same = y_true_f * y_pred_f
-    intersection = np.sum(y_same)
+    intersection = np.sum(y_true_f * y_pred_f)
     # return (2. * intersection) / (np.sum(y_true_f) + np.sum(y_pred_f) + smooth)
     return (2. * intersection + smooth) / (np.sum(y_true_f) + np.sum(y_pred_f) + smooth)
 
@@ -148,7 +140,7 @@ def get_unet_():
 
 
 # use_existing参数为是否利用已有权值训练网络
-def train(use_existing=False):
+def train(use_existing=False, working_path=""):
     print('-' * 30)
     print('Loading and preprocessing train data...')
     print('-' * 30)
@@ -183,7 +175,7 @@ def train(use_existing=False):
     print('Fitting model...')
     print('-' * 30)
 
-    model_checkpoint = ModelCheckpoint('unet.hdf5', monitor='val_loss', save_best_only=True)
+    model_checkpoint = ModelCheckpoint('unet.hdf5', monitor='loss', save_best_only=True)
     # tbCallBack = TensorBoard(log_dir='./logs', histogram_freq=1, write_graph=True, \
     #                          write_images=True, embeddings_freq=1)
     model.fit(imgs_train, imgs_mask_train, batch_size=2, nb_epoch=20, verbose=1, shuffle=True,
@@ -191,53 +183,67 @@ def train(use_existing=False):
               callbacks=[model_checkpoint])
 
     # 其实return的没啥卵用
-    return model
+    # return model
 
 
-def predict():
+def predict(ifplot=True, val_path=''):
+    # 预测时候是否每张画图
     # 可以只做预测
     model = get_unet()
     model.load_weights('./unet.hdf5')
-    imgs_test = np.load(working_path + pre + "trainImages.npy").astype(np.float32)
-    imgs_mask_test_true = np.load(working_path + pre + "trainMasks.npy").astype(np.float32)
+    imgs_test = np.load(val_path + pre + "trainImages.npy").astype(np.float32)
+    imgs_mask_test_true = np.load(val_path + pre + "trainMasks.npy").astype(np.float32)
+    # imgs_test = np.load(working_path + pre + "trainImages.npy").astype(np.float32)
+    # imgs_mask_test_true = np.load(working_path + pre + "trainMasks.npy").astype(np.float32)
     print('-' * 30)
     print('Predicting masks on test data...')
     print('-' * 30)
     num_test = len(imgs_test)
     imgs_mask_test = np.ndarray([num_test, 1, 512, 512], dtype=np.float32)
-    for i in range(num_test):
-        imgs_mask_test[i] = model.predict([imgs_test[i:i + 1]], verbose=1)[0]
-        # print(imgs_mask_test[i][0])
-        plt.subplots()
-        plt.subplot(121)
-        plt.title('original image')
-        plt.imshow(imgs_test[i][0])
-
-        plt.subplot(243)
-        plt.title('labeled node mask')
-        plt.imshow(imgs_mask_test_true[i][0])
-
-        plt.subplot(244)
-        plt.imshow(imgs_test[i][0] * imgs_mask_test_true[i][0])
-
-        plt.subplot(247)
-        plt.title('predicted node mask')
-        plt.imshow(imgs_mask_test[i][0])
-
-        plt.subplot(248)
-        plt.imshow(imgs_test[i][0] * imgs_mask_test[i][0])
-        # plt.colorbar()
-        plt.show()
-
-    np.save('masksTestPredicted.npy', imgs_mask_test)
     mean = 0.0
     for i in range(num_test):
-        mean += dice_coef_np(imgs_mask_test_true[i, 0], imgs_mask_test[i, 0])
+        imgs_mask_test[i] = model.predict([imgs_test[i:i + 1]], verbose=0)[0]
+        # print(imgs_mask_test[i][0])
+        dice = dice_coef_np(imgs_mask_test_true[i, 0], imgs_mask_test[i, 0])
+        # print(dice)
+        mean += dice
+        if ifplot:
+            plt.subplots()
+            plt.subplot(121)
+            plt.title('original image')
+            plt.imshow(imgs_test[i][0])
+
+            plt.subplot(243)
+            plt.title('labeled node mask')
+            plt.imshow(imgs_mask_test_true[i][0])
+
+            plt.subplot(244)
+            plt.imshow(imgs_test[i][0] * imgs_mask_test_true[i][0])
+
+            plt.subplot(247)
+            plt.title('predicted node mask. dice = {}'.format(dice))
+            plt.imshow(imgs_mask_test[i][0])
+
+            plt.subplot(248)
+            plt.imshow(imgs_test[i][0] * imgs_mask_test[i][0])
+            # plt.colorbar()
+            plt.show()
+        else:
+            pass
     mean /= num_test
     print("Mean Dice Coeff : ", mean)
+    np.save('masksTestPredicted.npy', imgs_mask_test)
 
 
 if __name__ == '__main__':
+    working_path1 = "/media/soffo/本地磁盘/tc/train/tutorial/part1/"
+    working_path2 = "/media/soffo/本地磁盘/tc/train/tutorial/part2/"
+    val_path = "/media/soffo/本地磁盘/tc/val/tutorial/"
+    val_path = "/media/soffo/本地磁盘/tc/train/tutorial/part1/"
+    val_path = "/media/soffo/本地磁盘/tc/train/tutorial/part2/"
     # train(use_existing=False)
-    train(use_existing=True)
-    predict()
+    # train(use_existing=True,working_path=working_path1)
+    # predict(ifplot=True, val_path=val_path)
+    # train(use_existing=True, working_path=working_path2)
+    # predict(ifplot=False, val_path=val_path)
+    predict(ifplot=True, val_path=val_path)

@@ -6,8 +6,8 @@ from skimage.transform import resize
 from glob import glob
 import matplotlib.pyplot as plt
 
+working_path = "/media/soffo/本地磁盘/tc/train/tutorial/part1/"
 # working_path = "/media/soffo/本地磁盘/tc/train/tutorial/part2/"
-working_path = "/media/soffo/本地磁盘/tc/train/tutorial/part2/"
 working_path = "/media/soffo/本地磁盘/tc/val/tutorial/"
 # working_path = "/home/soffo/Documents/codes/DSB3Tutorial/tutorial_code/minidata/tutorial/"
 # working_path = "/media/soffo/MEDIA/tcdata/tutorial/"
@@ -116,9 +116,9 @@ for fname in file_list:
         # plt.imshow(img)
         # plt.colorbar()
         new_size = [512, 512]  # we're scaling back up to the original size of the image
-        img = mask * img  # apply lung mask
-        # 经测试不resize，用min和max都不如原图理想。其中min收敛到一般开始发散，loss很大，但是acc0.9
         # 以下为各种mask方式，最终没用mask，制作resize
+        # img = mask * img  # apply lung mask
+        # 经测试不resize，用min和max都不如原图理想。其中min收敛到一般开始发散，loss很大，但是acc0.9
         # img[mask == 0] = np.min(img)
         # img[mask == 0] = np.max(img)
         # noise = np.mean(img)*np.random.rand(img.shape[0],img.shape[1])

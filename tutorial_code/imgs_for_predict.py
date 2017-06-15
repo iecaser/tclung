@@ -1,3 +1,23 @@
+# encoding: utf-8
+
+'''
+
+@author: Soofo
+
+@license: (C) Copyright 2017-2018, IECAS Limited.
+
+@contact: iecaser@163.com
+
+@software: pycharm
+
+@file: imgs_for_predict.py
+
+@time: 17-6-14 下午7:49
+
+@desc:
+
+'''
+
 from __future__ import print_function, division
 import SimpleITK as sitk
 import numpy as np
@@ -68,8 +88,8 @@ Returns uint16 version
 #
 # Getting list of image files
 # luna_path = r"/media/soffo/MEDIA/tcdata/"
-# luna_path = r"/media/soffo/本地磁盘/tc/val/"
-luna_path = r"/media/soffo/本地磁盘/tc/train/"
+luna_path = r"/media/soffo/本地磁盘/tc/val/"
+# luna_path = r"/media/soffo/本地磁盘/tc/train/"
 # luna_path = r"/home/soffo/Documents/codes/DSB3Tutorial/tutorial_code/minidata/"
 luna_subset_path = luna_path + 'data/part2/'
 output_path = luna_path + 'tutorial/part2/'
@@ -80,7 +100,7 @@ file_list = glob(luna_subset_path + "*.mhd")
 
 #####################
 #
-# Helper function to get rows in data frame associated 
+# Helper function to get rows in data frame associated
 # with each file
 def get_filename(file_list, case):
     for f in file_list:
@@ -138,3 +158,4 @@ for fcount, img_file in enumerate(tqdm(file_list)):
                 # plt.show()
     except:
         print('---- 图片内容读取失败 ----')
+
