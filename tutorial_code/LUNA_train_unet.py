@@ -11,9 +11,9 @@ from keras.callbacks import ModelCheckpoint, LearningRateScheduler, TensorBoard
 from keras import backend as K
 
 # 待读取文件前缀（配合ROI操作之后）
-# pre = 'noROI'
+pre = 'noROI'
 # pre = ''
-pre = 'xf'
+# pre = 'xf'
 # pre = 'cj'
 K.set_image_dim_ordering('th')  # Theano dimension ordering in this code
 
@@ -97,70 +97,78 @@ def get_unet():
 # 大些的网络
 def get_unet_():
     inputs = Input((1, img_rows, img_cols))
+    # inputs = Input((3, img_rows, img_cols))
     conv1 = Convolution2D(16, 3, 3, activation='relu', border_mode='same')(inputs)
-    conv1 = Convolution2D(32, 3, 3, activation='relu', border_mode='same')(conv1)
+    conv1 = Convolution2D(16, 3, 3, activation='relu', border_mode='same')(conv1)
     pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
 
     conv2 = Convolution2D(32, 3, 3, activation='relu', border_mode='same')(pool1)
-    conv2 = Convolution2D(64, 3, 3, activation='relu', border_mode='same')(conv2)
+    conv2 = Convolution2D(32, 3, 3, activation='relu', border_mode='same')(conv2)
     pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
 
     conv3 = Convolution2D(64, 3, 3, activation='relu', border_mode='same')(pool2)
-    conv3 = Convolution2D(128, 3, 3, activation='relu', border_mode='same')(conv3)
+    conv3 = Convolution2D(64, 3, 3, activation='relu', border_mode='same')(conv3)
     pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
 
     conv4 = Convolution2D(128, 3, 3, activation='relu', border_mode='same')(pool3)
-    conv4 = Convolution2D(256, 3, 3, activation='relu', border_mode='same')(conv4)
+    conv4 = Convolution2D(128, 3, 3, activation='relu', border_mode='same')(conv4)
     pool4 = MaxPooling2D(pool_size=(2, 2))(conv4)
 
     conv5 = Convolution2D(256, 3, 3, activation='relu', border_mode='same')(pool4)
-    conv5 = Convolution2D(512, 3, 3, activation='relu', border_mode='same')(conv5)
+    conv5 = Convolution2D(256, 3, 3, activation='relu', border_mode='same')(conv5)
 
     up6 = merge([UpSampling2D(size=(2, 2))(conv5), conv4], mode='concat', concat_axis=1)
     conv6 = Convolution2D(128, 3, 3, activation='relu', border_mode='same')(up6)
-    conv6 = Convolution2D(256, 3, 3, activation='relu', border_mode='same')(conv6)
+    conv6 = Convolution2D(128, 3, 3, activation='relu', border_mode='same')(conv6)
 
     up7 = merge([UpSampling2D(size=(2, 2))(conv6), conv3], mode='concat', concat_axis=1)
     conv7 = Convolution2D(64, 3, 3, activation='relu', border_mode='same')(up7)
-    conv7 = Convolution2D(128, 3, 3, activation='relu', border_mode='same')(conv7)
+    conv7 = Convolution2D(64, 3, 3, activation='relu', border_mode='same')(conv7)
 
     up8 = merge([UpSampling2D(size=(2, 2))(conv7), conv2], mode='concat', concat_axis=1)
     conv8 = Convolution2D(32, 3, 3, activation='relu', border_mode='same')(up8)
-    conv8 = Convolution2D(64, 3, 3, activation='relu', border_mode='same')(conv8)
+    conv8 = Convolution2D(32, 3, 3, activation='relu', border_mode='same')(conv8)
 
     up9 = merge([UpSampling2D(size=(2, 2))(conv8), conv1], mode='concat', concat_axis=1)
     conv9 = Convolution2D(16, 3, 3, activation='relu', border_mode='same')(up9)
-    conv9 = Convolution2D(32, 3, 3, activation='relu', border_mode='same')(conv9)
+    conv9 = Convolution2D(16, 3, 3, activation='relu', border_mode='same')(conv9)
 
     conv10 = Convolution2D(1, 1, 1, activation='sigmoid')(conv9)
 
     model = Model(input=inputs, output=conv10)
-    model.compile(optimizer=Adam(lr=1.0e-5), loss=dice_coef_loss, metrics=[dice_coef, 'accuracy'])
+    model.compile(optimizer=Adam(lr=1.0e-6), loss=dice_coef_loss, metrics=[dice_coef, 'accuracy'])
     return model
 
 
 # use_existing参数为是否利用已有权值训练网络
-def train(use_existing=False, working_path=""):
+def train(use_existing=False, working_path="", val_path=""):
     print('-' * 30)
     print('Loading and preprocessing train data...')
     print('-' * 30)
     imgs_train = np.load(working_path + pre + "trainImages.npy").astype(np.float32)
     imgs_mask_train = np.load(working_path + pre + "trainMasks.npy").astype(np.float32)
-    # imgs_test = np.load("/media/soffo/本地磁盘/tc/val/tutorial/" + pre + "trainImages.npy").astype(np.float32)
-    # imgs_mask_test_true = np.load("/media/soffo/本地磁盘/tc/val/tutorial/" + pre + "trainMasks.npy").astype(np.float32)
+    imgs_test = np.load(val_path + pre + "trainImages.npy").astype(np.float32)
+    imgs_mask_test_true = np.load(val_path + pre + "trainMasks.npy").astype(np.float32)
     # 注意这里归一化问题：单张图还是数据集的归一化，待考证
-    mean = np.mean(imgs_train)  # mean for data centering
+    # 这里的mean为一个均值图像1*512*512
+    mean = np.mean(imgs_train,axis=0) # mean for data centering
+    # 这里的std为一个数
     std = np.std(imgs_train)  # std for data normalization
     imgs_train -= mean  # images should already be standardized, but just in case
     imgs_train /= std
     # 曾经直接在train数据上验证
     # imgs_test = imgs_train
     # imgs_mask_test_true = imgs_mask_train
+
+    # 一定记得在test上采用相同的归一化！！
+    imgs_test -= mean  # images should already be standardized, but just in case
+    imgs_test /= std
+
     print('-' * 30)
     print('Creating and compiling model...')
     print('-' * 30)
-    # model = get_unet_()           # 大网络训练
-    model = get_unet()  # 小网络训练
+    model = get_unet_()           # 大网络训练
+    # model = get_unet()  # 小网络训练
     if use_existing:
         model.load_weights('./unet.hdf5')
     # 
@@ -175,12 +183,13 @@ def train(use_existing=False, working_path=""):
     print('Fitting model...')
     print('-' * 30)
 
-    model_checkpoint = ModelCheckpoint('unet.hdf5', monitor='loss', save_best_only=True)
+    model_checkpoint = ModelCheckpoint('unet.hdf5', monitor='val_loss', save_best_only=True)
     # tbCallBack = TensorBoard(log_dir='./logs', histogram_freq=1, write_graph=True, \
     #                          write_images=True, embeddings_freq=1)
-    model.fit(imgs_train, imgs_mask_train, batch_size=2, nb_epoch=20, verbose=1, shuffle=True,
-              # callbacks=[model_checkpoint], validation_data=[imgs_test, imgs_mask_test_true])
-              callbacks=[model_checkpoint])
+    # batch_size 为10的话会报错，OOM错误
+    model.fit(imgs_train, imgs_mask_train, batch_size=5, epochs=50, verbose=1, shuffle=True,
+              callbacks=[model_checkpoint], validation_data=[imgs_test, imgs_mask_test_true])
+    # callbacks=[model_checkpoint])
 
     # 其实return的没啥卵用
     # return model
@@ -190,6 +199,7 @@ def predict(ifplot=True, val_path=''):
     # 预测时候是否每张画图
     # 可以只做预测
     model = get_unet()
+    # model = get_unet_()
     model.load_weights('./unet.hdf5')
     imgs_test = np.load(val_path + pre + "trainImages.npy").astype(np.float32)
     imgs_mask_test_true = np.load(val_path + pre + "trainMasks.npy").astype(np.float32)
@@ -236,14 +246,9 @@ def predict(ifplot=True, val_path=''):
 
 
 if __name__ == '__main__':
-    working_path1 = "/media/soffo/本地磁盘/tc/train/tutorial/part1/"
-    working_path2 = "/media/soffo/本地磁盘/tc/train/tutorial/part2/"
+    working_path = "/media/soffo/本地磁盘/tc/train/tutorial/"
     val_path = "/media/soffo/本地磁盘/tc/val/tutorial/"
-    val_path = "/media/soffo/本地磁盘/tc/train/tutorial/part1/"
-    val_path = "/media/soffo/本地磁盘/tc/train/tutorial/part2/"
-    # train(use_existing=False)
-    # train(use_existing=True,working_path=working_path1)
-    # predict(ifplot=True, val_path=val_path)
-    # train(use_existing=True, working_path=working_path2)
+    # train(use_existing=False, working_path=working_path, val_path=val_path)
+    train(use_existing=True, working_path=working_path, val_path=val_path)
     # predict(ifplot=False, val_path=val_path)
-    predict(ifplot=True, val_path=val_path)
+    # predict(ifplot=True, val_path=val_path)

@@ -38,14 +38,18 @@ if mode == '1':
 
 
     # 查看pre + trainImages.npy文件名的图片，pre为文件名前缀
-    # pre = 'noROI'
-    # pre = ''
-    # pre = 'cj'
-    pre = 'xf'
+    pre = 'noROI'
+    # pre = 'xf'
 
     imgs_train = np.load(working_path + pre + "trainImages.npy").astype(np.float32)
     imgs_mask_train = np.load(working_path + pre + "trainMasks.npy").astype(np.float32)
     for img, img_mask in zip(imgs_train, imgs_mask_train):
+        plt.title('original_image')
+        # img.shape为1*512*512,下面mask也是
+        plt.imshow(img[0])
+        plt.colorbar()
+
+        plt.subplots()
         plt.subplot(131)
         plt.title('original_image')
         # img.shape为1*512*512,下面mask也是
@@ -64,16 +68,16 @@ if mode == '1':
         plt.imshow(img_mask[0] * img[0])
         plt.colorbar()
 
-        plt.subplots()
-        plt.subplot(121)
-        plt.title('original_image hist')
-        plt.xlabel('max:{} mean:{} min:{}'.format(np.max(img[0]), np.round(np.mean(img[0])), np.min(img[0])))
-        plt.hist(img[0].flatten())
-
-        plt.subplot(122)
-        plt.title('node_image hist')
-        plt.xlabel('max:{} mean:{} min:{}'.format(np.max(img[0]), np.round(np.mean(img[0])), np.min(img[0])))
-        plt.hist(img_mask[0].flatten())
+        # plt.subplots()
+        # plt.subplot(121)
+        # plt.title('original_image hist')
+        # plt.xlabel('max:{} mean:{} min:{}'.format(np.max(img[0]), np.round(np.mean(img[0])), np.min(img[0])))
+        # plt.hist(img[0].flatten())
+        #
+        # plt.subplot(122)
+        # plt.title('node_image hist')
+        # plt.xlabel('max:{} mean:{} min:{}'.format(np.max(img[0]), np.round(np.mean(img[0])), np.min(img[0])))
+        # plt.hist(img_mask[0].flatten())
 
         plt.show()
 elif mode == '2':

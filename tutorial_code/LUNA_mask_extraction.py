@@ -68,11 +68,11 @@ Returns uint16 version
 #
 # Getting list of image files
 # luna_path = r"/media/soffo/MEDIA/tcdata/"
-# luna_path = r"/media/soffo/本地磁盘/tc/val/"
+luna_path = r"/media/soffo/本地磁盘/tc/val/"
 luna_path = r"/media/soffo/本地磁盘/tc/train/"
 # luna_path = r"/home/soffo/Documents/codes/DSB3Tutorial/tutorial_code/minidata/"
-luna_subset_path = luna_path + 'data/part2/'
-output_path = luna_path + 'tutorial/part2/'
+luna_subset_path = luna_path + 'data/'
+output_path = luna_path + 'tutorial/'
 luna_subset_path = luna_path + 'data/'
 output_path = luna_path + 'tutorial/'
 file_list = glob(luna_subset_path + "*.mhd")
@@ -90,8 +90,8 @@ def get_filename(file_list, case):
 
 #
 # The locations of the nodes
-# df_node = pd.read_csv(luna_path + "csv/train/annotations.csv")
-df_node = pd.read_csv(luna_path + "csv/val/annotations.csv")
+df_node = pd.read_csv(luna_path + "csv/train/annotations.csv")
+# df_node = pd.read_csv(luna_path + "csv/val/annotations.csv")
 df_node["file"] = df_node["seriesuid"].map(lambda file_name: get_filename(file_list, file_name))
 df_node = df_node.dropna()
 
@@ -99,6 +99,9 @@ df_node = df_node.dropna()
 #
 # Looping over the image files
 #
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
 for fcount, img_file in enumerate(tqdm(file_list)):
     mini_df = df_node[df_node["file"] == img_file]  # get all nodules associate with file
     try:
@@ -122,6 +125,13 @@ for fcount, img_file in enumerate(tqdm(file_list)):
                 # 将标注转化为在图片中像素位置
                 # rint 为就近取整
                 v_center = np.rint((center - origin) / spacing)  # nodule center in voxel space (still x,y,z ordering)
+
+                # 3d scatter
+                # fig = plt.figure()
+                # ax = Axes3D(fig)
+                # x, y, z = np.where(img_array > 1000)
+                # ax.scatter3D(x, y, z, marker='.')
+                # plt.show()
                 for i, i_z in enumerate(np.arange(int(v_center[2]) - 1,
                                                   int(v_center[2]) + 2).clip(0,
                                                                              num_z - 1)):  # clip prevents going out of bounds in Z

@@ -6,11 +6,9 @@ from skimage.transform import resize
 from glob import glob
 import matplotlib.pyplot as plt
 
-working_path = "/media/soffo/本地磁盘/tc/train/tutorial/part1/"
-# working_path = "/media/soffo/本地磁盘/tc/train/tutorial/part2/"
+# working_path = "/media/soffo/本地磁盘/tc/train/tutorial/"
 working_path = "/media/soffo/本地磁盘/tc/val/tutorial/"
-# working_path = "/home/soffo/Documents/codes/DSB3Tutorial/tutorial_code/minidata/tutorial/"
-# working_path = "/media/soffo/MEDIA/tcdata/tutorial/"
+
 file_list = glob(working_path + "images_*.npy")
 ifplot = False
 
@@ -121,6 +119,7 @@ for fname in file_list:
         # 经测试不resize，用min和max都不如原图理想。其中min收敛到一般开始发散，loss很大，但是acc0.9
         # img[mask == 0] = np.min(img)
         # img[mask == 0] = np.max(img)
+        img[mask == 0] = np.mean(img[mask == 1])
         # noise = np.mean(img)*np.random.rand(img.shape[0],img.shape[1])
         # img[mask == 0] = noise[mask==0]
 
