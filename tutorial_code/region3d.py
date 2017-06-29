@@ -33,6 +33,9 @@ from glob import glob
 import pandas as pd
 import os
 import scipy.ndimage
+import matplotlib.pyplot as plt
+from skimage.filters import gaussian, median
+from mpl_toolkits.mplot3d import Axes3D
 from skimage import measure, morphology
 
 
@@ -186,11 +189,12 @@ def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
     cxyz = np.array(cxyz)
     balls = Ball(coor=cxyz, dia=dia)
 
-    print("------------------ balls -------------------")
-    for region in cregion:
-        print("{} - aera:{}\t - \tcentroid:{}\t - \tequivalent_d:{}\t - \textent:{}\t - bbox:{}".format(
-            region.label, region.area, region.centroid, region.equivalent_diameter, region.extent,
-            region.bbox))
+    if ifplot:
+        print("------------------ balls -------------------")
+        for region in cregion:
+            print("{} - aera:{}\t - \tcentroid:{}\t - \tequivalent_d:{}\t - \textent:{}\t - bbox:{}".format(
+                region.label, region.area, region.centroid, region.equivalent_diameter, region.extent,
+                region.bbox))
 
     return balls
 
@@ -342,9 +346,7 @@ df_node = df_node.dropna()
 #
 # Looping over the image files
 #
-import matplotlib.pyplot as plt
-from skimage.filters import gaussian, median
-from mpl_toolkits.mplot3d import Axes3D
+
 
 founds = 0
 shoulds = 0
@@ -352,8 +354,8 @@ negatives = 0
 for img_file in file_list:
     # debug时候针对特定mhd数据处理，并且作图；
     # 注意因为有for循环，debug模式一定要在debug模式下开启
-    # debugMode = False
-    debugMode = True
+    debugMode = False
+    # debugMode = True
 
     ifplot = False
     if debugMode:
