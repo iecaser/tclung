@@ -14,7 +14,7 @@
 
 @time: 17-6-22 下午5:42
 
-@desc:
+@desc: 用于3d region proposal，待修正地方还有很多
 
 '''
 
@@ -27,7 +27,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 from scipy.ndimage.morphology import binary_erosion, binary_dilation
-from tutorial_code.lung_segmentation import *
+# from tutorial_code.lung_segmentation import *
 from sklearn.cluster import DBSCAN
 
 try:
@@ -48,29 +48,6 @@ from skimage import measure, morphology
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 
-def plot_3d(image, threshold=0):
-    # Position the scan upright,
-    # so the head of the patient would be at the top facing the camera
-    p = image.transpose(2, 1, 0)
-
-    verts, faces, normals, values = measure.marching_cubes_lewiner(p, threshold)
-    # verts, faces = measure.marching_cubes_classic(p, threshold)
-
-    fig = plt.figure(figsize=(10, 10))
-    ax = fig.add_subplot(111, projection='3d')
-
-    # Fancy indexing: `verts[faces]` to generate a collection of triangles
-    mesh = Poly3DCollection(verts[faces], alpha=0.70)
-    face_color = [0.45, 0.45, 0.75]
-    mesh.set_facecolor(face_color)
-    ax.add_collection3d(mesh)
-
-    ax.set_xlim(0, p.shape[0])
-    ax.set_ylim(0, p.shape[1])
-    ax.set_zlim(0, p.shape[2])
-
-    plt.show()
-
 
 def largest_label_volume(im, bg=-1):
     vals, counts = np.unique(im, return_counts=True)
@@ -84,12 +61,12 @@ def largest_label_volume(im, bg=-1):
         return None
 
 
-def segment_lung_mask(image, fill_lung_structures=True):
+def segment_lung_mask(image, threshold=-600, fill_lung_structures=True):
     # not actually binary, but 1 and 2.
     # 0 is treated as background, which we do not want
-    binary_image = np.array(image > -420, dtype=np.int8) + 1
+    binary_image = np.array(image > threshold, dtype=np.int8) + 1
+    # binary_image = np.array(image > 0.3*np.mean(image), dtype=np.int8) + 1
     labels = measure.label(binary_image)
-
     # Pick the pixel in the very corner to determine which label is air.
     #   Improvement: Pick multiple background labels from around the patient
     #   More resistant to "trays" on which the patient lays cutting the air
@@ -98,7 +75,6 @@ def segment_lung_mask(image, fill_lung_structures=True):
 
     # Fill the air around the person
     binary_image[background_label == labels] = 2
-
     # Method of filling the lung structures (that is superior to something like
     # morphological closing)
     if fill_lung_structures:
@@ -114,7 +90,7 @@ def segment_lung_mask(image, fill_lung_structures=True):
     binary_image -= 1  # Make the image actual binary
     binary_image = 1 - binary_image  # Invert it, lungs are now 1
     # 觉得后面没啥用，提前返回
-    return binary_image
+    return 1 - binary_image
     plt.subplots()
     plt.imshow(binary_image[0])
     plt.show()
@@ -179,26 +155,32 @@ Returns uint16 version
 
 
 # ------------------------------------------------------
-def ballProposal(segmented_lungs, nodesCenter):
+def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
     # -------- 下面都是提取亮斑的步骤 --------------
-    segmented_lungs_content = 1 - segmented_lungs
     # 分离背景和结节必要步骤
-    segmented_lungs_content = binary_erosion(segmented_lungs_content).astype(segmented_lungs_content.dtype)
-    # segmented_lungs_content = binary_erosion(segmented_lungs_content).astype(segmented_lungs_content.dtype)
+    # erosion有助于使大结节“封口”，和背景区分开来
+    for i in range(param.erosionTimes):
+        segmented_lungs_content = binary_erosion(segmented_lungs_content).astype(segmented_lungs_content.dtype)
 
-    # for cm in segmented_lungs_content:
-    #     plt.subplots()
-    #     plt.imshow(cm)
     # 结合图片考察亮斑（结节）查出情况
-    for j in range(10):
-        plt.subplots()
-        plt.subplot(121)
-        plt.imshow(segmented_lungs_content[150 - j])
-        plt.subplot(122)
-        plt.imshow(img_array[150 - j])
-    # plt.show()
+    # nthNode为待查看结节序号（结合log信息中should:nthNode）
+    # nthNode = 2
+    # nthNode = 1
+    nthNode = 0
+    # nthNode = 4
 
-    contentLabels = measure.label(segmented_lungs_content)
+    if ifplot:
+        for j in range(20):
+            plt.subplots()
+            plt.subplot(121)
+            plt.imshow(segmented_lungs_content[int(nodesCenter[nthNode][2]) + 10 - j])
+            plt.subplot(122)
+            plt.imshow(img_array[int(nodesCenter[nthNode][2]) + 10 - j])
+            # plt.show()
+
+    # contentLabels = measure.label(segmented_lungs_content, connectivity=2)
+    # contentLabels = measure.label(segmented_lungs_content, connectivity=1)
+    contentLabels = measure.label(segmented_lungs_content, connectivity=3)
     region3d = measure.regionprops(contentLabels)
 
     # check region 3d
@@ -233,51 +215,107 @@ def ballProposal(segmented_lungs, nodesCenter):
     #   - 注意条状region的extent也可以较大，有必要直接根据bbox做长宽高比限定
     cregion = []
     cxyz = []
-    cr = []
+    dia = []
     # 对照真结节，统计查出数目
     ballCount = 0
+    if ifplot:
+        print("{} - label:{}".format(nodesCenter[nthNode], contentLabels[int(np.rint(nodesCenter[nthNode][2]))][
+            int(np.rint(nodesCenter[nthNode][1]))][int(np.rint(nodesCenter[nthNode][0]))]))
     for region in region3d:
         # 全部打印用于对照查找问题
-        # print("{} - aera:{}\t - \tcentroid:{}\t - \tequivalent_d:{}\t - \textent:{}\t - bbox:{}".format(
-        #     region.label, region.area, region.centroid, region.equivalent_diameter, region.extent,
-        #     region.bbox))
-        if 8 <= region.area <= 1000:
-            if 1.5 <= region.equivalent_diameter <= 9.5:
-                if 0.08 <= region.extent <= 0.95:
+        if ifplot:
+            print("{} - aera:{}\t - \tcentroid:{}\t - \tequivalent_d:{}\t - \textent:{}\t - bbox:{}".format(
+                region.label, region.area, region.centroid, region.equivalent_diameter, region.extent,
+                region.bbox))
+        if param.areamin <= region.area <= param.areamax:
+            if param.dmin <= region.equivalent_diameter <= param.dmin + 40:
+                if 0.08 <= region.extent:
                     rb = region.bbox
                     a = rb[3] - rb[0]
+                    # spacing resize !!
+                    a *= 3
                     b = rb[4] - rb[1]
                     c = rb[5] - rb[2]
                     rectCoef = a / b + b / c + c / a
-                    if 3.0 <= rectCoef <= 8.0:
+                    if 3.0 <= rectCoef <= 6.0:
                         # print(rectCoef,end='  -  ')
-                        xyz = np.array([region.centroid[2], region.centroid[1], region.centroid[0]])
-                        # pxyz有几个真实结点，就有几个值
-                        l2Distance = np.sum((nodesCenter - xyz) ** 2, axis=1)
-                        isTrueBall = len(np.where(l2Distance < 10.0)[0]) > 0
-                        if isTrueBall:  # 认为是一个点,即真结节是候选（愿景）
-                            # 找出来的结节候选
-                            ballCount += 1
-                            # 打印找出的点，为了后续对比
-                            print("found:\t\t{}".format(xyz))
-                            # print(
-                            #     "Found{}: \t\t\t\t\t{} - aera:{}\t - \tcentroid:{}\t - \tequivalent_d:{}\t - \textent:{}\t - bbox:{}".format(
-                            #         ballCount, region.label, region.area, region.centroid, region.equivalent_diameter,
-                            #         region.extent, region.bbox))
-                            continue
                         cregion.append(region)
+                        xyz = np.array([region.centroid[2], region.centroid[1], region.centroid[0]])
                         cxyz.append(xyz)
-                        cr.append(region.equivalent_diameter)
-                        # print("{} - aera:{}\t - \tcentroid:{}\t - \tequivalent_d:{}\t - \textent:{}\t - bbox:{}".format(
-                        #     region.label, region.area, region.centroid, region.equivalent_diameter, region.extent,
-                        #     region.bbox))
+                        dia.append(region.equivalent_diameter)
 
-    cr = np.array(cr)
+    dia = np.array(dia)
     cxyz = np.array(cxyz)
-    print("---------  found/should-negative : {}/{}-{}  ---------".format(ballCount, len(nodesCenter),
-                                                                          len(cregion) + ballCount))
+    balls = Ball(coor=cxyz, dia=dia)
 
-    return ballCount, len(nodesCenter), len(cregion)
+    print("------------------ balls -------------------")
+    for region in cregion:
+        print("{} - aera:{}\t - \tcentroid:{}\t - \tequivalent_d:{}\t - \textent:{}\t - bbox:{}".format(
+            region.label, region.area, region.centroid, region.equivalent_diameter, region.extent,
+            region.bbox))
+
+    return balls
+
+
+# ballProposal基本参数
+class Param:
+    def __init__(self, erosionTimes=1, areamin=5, areamax=15000, dmin=2.0):
+        self.erosionTimes = erosionTimes
+        self.areamin = areamin
+        self.areamax = areamax
+        self.dmin = dmin
+
+
+# 坐标和等效直径（分割有用的就这俩）
+# 关于命名，真结节叫node，通过亮斑找出来的这一堆只能叫“球”
+class Ball:
+    def __init__(self, coor=np.zeros(3), dia=np.zeros(1)):
+        self.coor = coor
+        self.dia = dia
+
+
+# repetition check
+def repCheck(ballOld, ballNew):
+    # D = 15.0
+    D = 20.0
+    ballNewLight = np.zeros(ballNew.coor.shape[0]).astype(bool)
+    for i, xyzNew in enumerate(ballNew.coor):
+        cnorm = np.linalg.norm(ballOld.coor - xyzNew, axis=1)
+        isrep = np.sum(cnorm < D).astype(bool)
+        ballNewLight[i] += isrep
+    ballNew.coor = ballNew.coor[~ballNewLight]
+    ballNew.dia = ballNew.dia[~ballNewLight]
+    balls = Ball(coor=np.r_[ballOld.coor, ballNew.coor], dia=np.r_[ballOld.dia, ballNew.dia])
+    return balls
+
+
+# 其实基本逻辑同repCheck相似，不过return不同，有待抽取相同逻辑
+# ball->node的check函数
+def nodeCheck(ball, nodesCenter):
+    # D 相当于CFAR的保护单元
+    # 现采用方式为两坐标距离平方和<D认为是同一结节
+    # 注！：后续可考虑修正为半径覆盖范围内认为同一结节
+    # D = 15.0
+    D = 20.0
+    coorLight = np.zeros(ball.coor.shape[0]).astype(bool)
+    nodesCenterLight = np.zeros(nodesCenter.shape[0]).astype(bool)
+    for i, nc in enumerate(nodesCenter):
+        cnorm = np.linalg.norm(ball.coor - nc, axis=1)
+        isFounds = (cnorm < D)
+        isFound = np.sum(isFounds).astype(bool)
+        coorLight += isFounds
+        nodesCenterLight[i] += isFound
+    nodeFound = np.sum(nodesCenterLight)
+    nodeShould = len(nodesCenter)
+    nodeNegative = len(ball.coor)
+    # 找到的都扔掉
+    ball.coor = ball.coor[~coorLight]
+    ball.dia = ball.dia[~coorLight]
+    # 打印找出的点，为了后续对比
+    print('''            \t{}
+--------------------  found/should-negative : {}/{}-{}  --------------------
+    '''.format(nodesCenterLight, nodeFound, nodeShould, nodeNegative))
+    return nodeFound, nodeShould, nodeNegative
 
 
 # ------------------------------------------------------
@@ -339,8 +377,8 @@ def extractNodeCenter(mini_df):
 # Getting list of image files
 # luna_path = r"/media/soffo/MEDIA/tcdata/"
 # luna_path = r"/media/soffo/本地磁盘/tc/val/"
-# luna_path = r"/media/soffo/本地磁盘/tc/train/"
-luna_path = r"/home/soffo/Documents/codes/minidata/"
+luna_path = r"/media/soffo/本地磁盘/tc/train/"
+# luna_path = r"/home/soffo/Documents/codes/minidata/"
 luna_subset_path = luna_path + 'data/'
 output_path = luna_path + 'tutorial/'
 luna_subset_path = luna_path + 'data/'
@@ -358,10 +396,7 @@ def get_filename(file_list, case):
             return (f)
 
 
-#
-# The locations of the nodes
 df_node = pd.read_csv(luna_path + "csv/train/annotations.csv")
-# df_node = pd.read_csv(luna_path + "csv/val/annotations.csv")
 df_node["file"] = df_node["seriesuid"].map(lambda file_name: get_filename(file_list, file_name))
 df_node = df_node.dropna()
 
@@ -370,15 +405,27 @@ df_node = df_node.dropna()
 # Looping over the image files
 #
 import matplotlib.pyplot as plt
+from skimage.filters import gaussian, median
 from mpl_toolkits.mplot3d import Axes3D
 
-# img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00003.mhd'
-img_file = '/home/soffo/Documents/codes/minidata/data/LKDS-00001.mhd'
 founds = 0
 shoulds = 0
 negatives = 0
 for img_file in file_list:
-    print("on img -- " + img_file)
+    # debug时候针对特定mhd数据处理，并且作图；
+    # 注意因为有for循环，debug模式一定要在debug模式下开启
+    # debugMode = False
+    debugMode = True
+
+    ifplot = False
+    if debugMode:
+        # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00192.mhd'
+        # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00168.mhd'
+        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00227.mhd'
+        # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00100.mhd'
+        ifplot = True
+    print("")
+    print("on mhd -- " + img_file)
     mini_df = df_node[df_node["file"] == img_file]  # get all nodules associate with file
     if mini_df.shape[0] > 0:  # some files may not have a nodule--skipping those
         # load the data once
@@ -389,22 +436,23 @@ for img_file in file_list:
         num_z, height, width = img_array.shape  # heightXwidth constitute the transverse plane
         origin = np.array(itk_img.GetOrigin())  # x,y,z  Origin in world coordinates (mm)
         spacing = np.array(itk_img.GetSpacing())  # spacing of voxels in world coor. (mm)
-        # go through all nodes (why just the biggest?)
 
+        # 以下代码仅为初期探索，已移除
+        # img_array = gaussian(img_array)
+        # img_array = gaussian(img_array)
+        # segmented_lungs = img_array > -600
+        # plt.subplots()
+        # plt.subplot(121)
+        # plt.imshow(segmented_lungs[71])
+        # plt.subplot(122)
+        # plt.imshow(img_array[71])
 
-        # img = img_array[0]
-        # plt.imshow(img)
-        # plt.colorbar()
-        # # plot_3d(img_array, 400)
-        segmented_lungs = segment_lung_mask(img_array, False)
         # plt.subplots()
         # plt.imshow(img * segmented_lungs[0])
         # plt.colorbar()
         # # plot_3d(segmented_lungs, 0)
         # # plt.show()
-
-
-
+        #
         # # fill是需要的，不过这个函数不好；故采用3d 腐蚀/膨胀
         # segmented_lungs_dilation = binary_dilation(segmented_lungs, structure=np.ones((5, 5, 5))).astype(
         #     segmented_lungs.dtype)
@@ -504,82 +552,64 @@ for img_file in file_list:
         # # 为了尽量让结节和背景分离，因为measure的props方式，不能有一点点的直连，而dbscan耗时太久。
         # # 发现一个特点，先把孔扩张（对应mask的erosion），再在这一步缩小，相对于不这样做，前者更倾向于把孔变为球状。
         # # 破坏了实际形状，使mask更倾向于球状（是好是坏呢？毕竟只是mask，目标是检测出来所有可疑结点）
-        # nodesCenter = np.array([[165, 162, 289], [151, 287, 293]])
+
+        # 将坐标提取归入extractNodeCenter函数
         nodesCenter = extractNodeCenter(mini_df)
-        found, should, negative = ballProposal(segmented_lungs=segmented_lungs, nodesCenter=nodesCenter)
-        founds += found
-        shoulds += should
-        negatives += negative
-        pass
+
+        p0 = Param(erosionTimes=0, areamin=15, areamax=1000, dmin=2.5)
+        p1 = Param(erosionTimes=1, areamin=6, areamax=1500, dmin=2.0)
+        p2 = Param(erosionTimes=2, areamin=4, areamax=1500, dmin=2.0)
+        p3 = Param(erosionTimes=3, areamin=2, areamax=15000, dmin=2.0)
+        p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
+
+        # 二值化门限设置
+        th = -600
+        ball0 = Ball()
+        # 这里的while循环为解决th门限对某些数据集太低，使得太多区域过了th
+        while True:
+            segmented_lungs = segment_lung_mask(img_array, threshold=th, fill_lung_structures=False)
+            ball0 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p0,
+                                 ifplot=ifplot)
+            if th > 0:
+                break
+            if ball0.coor.shape[0] < 20:
+                th += 200
+                print("  # # # 修正th为{} # # #".format(th))
+            else:
+                break
+        # 数据不适的跳过
+        if th > 0:
+            # 某些数据固有错误，如LKDS-00227.mhd。原因尚未清楚
+            print(" # # # # # # # # # #    error: couldn't handle   # # # # # # # # # # ")
+            continue
+        # 实际上ballProposal中nodesCenter参数仅供debug模式作图查看真正结节前后的几帧图像，正式版将移除
+        # 目前调用了3次ballProposal，实际上ball3作用很小，主要是为检出贴边较大结节，因为通过erosion或可将贴边的缺口闭合
+        ball1 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p1, ifplot=ifplot)
+        ball2 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p2, ifplot=ifplot)
+        ball3 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p3, ifplot=ifplot)
+        # ball5 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p5, ifplot=ifplot)
+
+        # ball0采用p0参数，通常候选太多，当超过1000候选，可以做erosion大量减少；忽视ball0
+        if ball0.coor.shape[0] > 1000:
+            # 候选太多则ball1也忽视
+            if ball1.coor.shape[0] > 1000:
+                ball = ball2
+            else:
+                ball = repCheck(ball1, ball2)
+        else:
+            ball = repCheck(ball0, ball1)
+            ball = repCheck(ball, ball2)
+        ball = repCheck(ball, ball3)
+        # ball = repCheck(ball, ball5)
+        nodeFound, nodeShould, nodeNegative = nodeCheck(ball=ball, nodesCenter=nodesCenter)
+        # 累加统计
+        founds += nodeFound
+        shoulds += nodeShould
+        negatives += nodeNegative
+        # 小结
+        print("--------  founds/shoulds-negatives : {}/{}-{}  ---------".format(founds, shoulds, negatives))
+# 总结
 print("")
 print("------------------------  Total  --------------------------")
-print("--------  founds/shoulds-negatives : {}/{}-{}  ---------".format(founds,shoulds,negatives))
-
-
-
-
-
-
-
-
-
-
-
-
-
-        # center3d = region3d.
-        # # contentMask 3d 准备完毕
-        # # 下面进行xyzp提取，用作聚类4d数据集
-        # cz, cx, cy = np.where(segmented_lungs_content > 0)
-        # cp = img_array[cz, cx, cy]
-        # # cdata shape为len×4
-        # cdata = np.c_[cz, cx, cy, cp]
-        # cdata = np.c_[cz, cx, cy]
-        # # 参数待设置
-        # db = DBSCAN(eps=7.5, min_samples=5)
-        # db.fit(cdata)
-        # labels = db.labels_
-        # uniqueLables = set(labels)
-        # # scatter 待续
-        # fig = plt.figure()
-        # ax = Axes3D(fig)
-        # colors = plt.cm.Spectral(np.linspace(0, 1, len(uniqueLables)))
-        # for k, color in zip(uniqueLables, colors):
-        #     alpha = 0.1
-        #     marker = '.'
-        #     if k == -1:
-        #         # 不画
-        #         continue
-        #         # # 或者标黑
-        #         color = 'k'
-        #         alpha = 0.2
-        #         marker = '.'
-        #     tempData = cdata[labels == k]
-        #     ax.scatter3D(tempData['x'], tempData['y'], tempData['z'], color=color, marker=marker, alpha=alpha)
-
-        # plot_3d(segmented_lungs_fill, 0)
-        # plot_3d(segmented_lungs_fill - segmented_lungs, 0)
-
-        # github 9th
-        # 下面留的两种分割方法较好
-        # plt.subplots()
-        # plt.imshow(img_array[0])
-        # mask = segment_HU_scan_elias(img_array)
-        # plt.subplots()
-        # plt.imshow(mask[0])
-        # plt.subplots()
-        # plt.imshow(img_array[0]*mask[0])
-        #
-        # mask = segment_HU_scan_frederic(img_array)
-        # plt.subplots()
-        # plt.imshow(mask[0])
-        # plt.subplots()
-        # plt.imshow(img_array[0]*mask[0])
-        # plt.show()
-
-
-        # 3d scatter
-        # fig = plt.figure()
-        # ax = Axes3D(fig)
-        # z, x, y = np.where(img_array > 500)
-        # ax.scatter3D(x, y, z, marker='.', alpha=0.1)
+print("---------   mhd counts: {}  ---------".format(len(file_list)))
+print("--------  founds/shoulds-negatives : {}/{}-{}  ---------".format(founds, shoulds, negatives))
