@@ -107,9 +107,11 @@ def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
     # nthNode为待查看结节序号（结合log信息中should:nthNode）
     # nthNode = 2
     # nthNode = 1
-    nthNode = 0
-    # nthNode = 10
+    # nthNode = 0
     # nthNode = 4
+    nthNode = 9
+    # nthNode = 10
+
 
     if ifplot:
         for j in range(20):
@@ -121,8 +123,8 @@ def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
             # plt.show()
 
     # contentLabels = measure.label(segmented_lungs_content, connectivity=2)
-    # contentLabels = measure.label(segmented_lungs_content, connectivity=1)
-    contentLabels = measure.label(segmented_lungs_content, connectivity=3)
+    contentLabels = measure.label(segmented_lungs_content, connectivity=1)
+    # contentLabels = measure.label(segmented_lungs_content, connectivity=3)
     region3d = measure.regionprops(contentLabels)
 
     # check region 3d
@@ -368,7 +370,7 @@ for img_file in file_list:
     if debugMode:
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00192.mhd'
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00168.mhd'
-        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00030.mhd'
+        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00730.mhd'
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00100.mhd'
         ifplot = True
     print("")
@@ -514,7 +516,9 @@ for img_file in file_list:
         ball0 = Ball()
         # 这里的while循环为解决th门限对某些数据集太低，使得太多区域过了th
         while True:
+            # 主要耗时1
             segmented_lungs = segment_lung_mask(img_array, threshold=th, fill_lung_structures=False)
+            # 主要耗时2
             ball0 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p0,
                                  ifplot=ifplot)
             if th > 0:
@@ -535,8 +539,8 @@ for img_file in file_list:
                                  ifplot=ifplot)
             ball3 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p3,
                                  ifplot=ifplot)
-            # ball5 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p5, ifplot=ifplot)
-
+            ball5 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p5, ifplot=ifplot)
+            #
             # ball0采用p0参数，通常候选太多，当超过1000候选，可以做erosion大量减少；忽视ball0
             if ball0.coor.shape[0] > 1000:
                 # 候选太多则ball1也忽视
@@ -548,7 +552,7 @@ for img_file in file_list:
                 ball = repCheck(ball0, ball1)
                 ball = repCheck(ball, ball2)
             ball = repCheck(ball, ball3)
-            # ball = repCheck(ball, ball5)
+            ball = repCheck(ball, ball5)
         nodeFound, nodeShould, nodeNegative = nodeCheck(ball=ball, nodesCenter=nodesCenter)
         # 累加统计
         founds += nodeFound
