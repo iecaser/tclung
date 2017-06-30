@@ -20,6 +20,7 @@
 
 from __future__ import print_function, division
 from scipy.ndimage.morphology import binary_erosion, binary_dilation
+
 # from tutorial_code.lung_segmentation import *
 try:
     from tqdm import tqdm  # long waits are not fun
@@ -94,7 +95,6 @@ def segment_lung_mask(image, threshold=-600, fill_lung_structures=True):
     return binary_image
 
 
-
 # ------------------------------------------------------
 def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
     # -------- 下面都是提取亮斑的步骤 --------------
@@ -108,6 +108,7 @@ def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
     # nthNode = 2
     # nthNode = 1
     nthNode = 0
+    nthNode = 10
     # nthNode = 4
 
     if ifplot:
@@ -170,6 +171,7 @@ def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
                 region.bbox))
         if param.areamin <= region.area <= param.areamax:
             if param.dmin <= region.equivalent_diameter <= param.dmin + 40:
+                # 按理说经过多次erosion的，extent约束要适当加强
                 if 0.08 <= region.extent:
                     rb = region.bbox
                     a = rb[3] - rb[0]
@@ -211,7 +213,7 @@ class Param:
 # 坐标和等效直径（分割有用的就这俩）
 # 关于命名，真结节叫node，通过亮斑找出来的这一堆只能叫“球”
 class Ball:
-    def __init__(self, coor=np.zeros(3), dia=np.zeros(1)):
+    def __init__(self, coor=np.array([]), dia=np.array([])):
         self.coor = coor
         self.dia = dia
 
@@ -234,25 +236,30 @@ def repCheck(ballOld, ballNew):
 # 其实基本逻辑同repCheck相似，不过return不同，有待抽取相同逻辑
 # ball->node的check函数
 def nodeCheck(ball, nodesCenter):
-    # D 相当于CFAR的保护单元
-    # 现采用方式为两坐标距离平方和<D认为是同一结节
-    # 注！：后续可考虑修正为半径覆盖范围内认为同一结节
-    # D = 15.0
-    D = 20.0
-    coorLight = np.zeros(ball.coor.shape[0]).astype(bool)
     nodesCenterLight = np.zeros(nodesCenter.shape[0]).astype(bool)
-    for i, nc in enumerate(nodesCenter):
-        cnorm = np.linalg.norm(ball.coor - nc, axis=1)
-        isFounds = (cnorm < D)
-        isFound = np.sum(isFounds).astype(bool)
-        coorLight += isFounds
-        nodesCenterLight[i] += isFound
-    nodeFound = np.sum(nodesCenterLight)
     nodeShould = len(nodesCenter)
-    nodeNegative = len(ball.coor)
-    # 找到的都扔掉
-    ball.coor = ball.coor[~coorLight]
-    ball.dia = ball.dia[~coorLight]
+    nodeFound = 0
+    nodeNegative = 0
+    if ball.coor.shape[0] > 0:
+        # D 相当于CFAR的保护单元
+        # 现采用方式为两坐标距离平方和<D认为是同一结节
+        # 注！：后续可考虑修正为半径覆盖范围内认为同一结节
+        # D = 15.0
+        D = 20.0
+        coorLight = np.zeros(ball.coor.shape[0]).astype(bool)
+
+        for i, nc in enumerate(nodesCenter):
+            cnorm = np.linalg.norm(ball.coor - nc, axis=1)
+            isFounds = (cnorm < D)
+            isFound = np.sum(isFounds).astype(bool)
+            coorLight += isFounds
+            nodesCenterLight[i] += isFound
+        nodeFound = np.sum(nodesCenterLight)
+        nodeNegative = len(ball.coor)
+        # 找到的都扔掉
+        ball.coor = ball.coor[~coorLight]
+        ball.dia = ball.dia[~coorLight]
+
     # 打印找出的点，为了后续对比
     print('''            \t{}
 --------------------  found/should-negative : {}/{}-{}  --------------------
@@ -354,14 +361,14 @@ negatives = 0
 for img_file in file_list:
     # debug时候针对特定mhd数据处理，并且作图；
     # 注意因为有for循环，debug模式一定要在debug模式下开启
-    debugMode = False
-    # debugMode = True
+    # debugMode = False
+    debugMode = True
 
     ifplot = False
     if debugMode:
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00192.mhd'
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00168.mhd'
-        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00227.mhd'
+        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00730.mhd'
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00100.mhd'
         ifplot = True
     print("")
@@ -512,35 +519,37 @@ for img_file in file_list:
                                  ifplot=ifplot)
             if th > 0:
                 break
-            if ball0.coor.shape[0] < 20:
+            if ball0.coor.shape[0] < 5:
                 th += 200
                 print("  # # # 修正th为{} # # #".format(th))
             else:
                 break
-        # 数据不适的跳过
-        if th > 0:
-            # 某些数据固有错误，如LKDS-00227.mhd。原因尚未清楚
-            print(" # # # # # # # # # #    error: couldn't handle   # # # # # # # # # # ")
-            continue
-        # 实际上ballProposal中nodesCenter参数仅供debug模式作图查看真正结节前后的几帧图像，正式版将移除
-        # 目前调用了3次ballProposal，实际上ball3作用很小，主要是为检出贴边较大结节，因为通过erosion或可将贴边的缺口闭合
-        ball1 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p1, ifplot=ifplot)
-        ball2 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p2, ifplot=ifplot)
-        ball3 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p3, ifplot=ifplot)
-        # ball5 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p5, ifplot=ifplot)
 
-        # ball0采用p0参数，通常候选太多，当超过1000候选，可以做erosion大量减少；忽视ball0
-        if ball0.coor.shape[0] > 1000:
-            # 候选太多则ball1也忽视
-            if ball1.coor.shape[0] > 1000:
-                ball = ball2
+        ball = Ball()
+        th = 0
+        if th < 0:
+            # 实际上ballProposal中nodesCenter参数仅供debug模式作图查看真正结节前后的几帧图像，正式版将移除
+            # 目前调用了3次ballProposal，实际上ball3作用很小，主要是为检出贴边较大结节，因为通过erosion或可将贴边的缺口闭合
+            ball1 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p1,
+                                 ifplot=ifplot)
+            ball2 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p2,
+                                 ifplot=ifplot)
+            ball3 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p3,
+                                 ifplot=ifplot)
+            # ball5 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p5, ifplot=ifplot)
+
+            # ball0采用p0参数，通常候选太多，当超过1000候选，可以做erosion大量减少；忽视ball0
+            if ball0.coor.shape[0] > 1000:
+                # 候选太多则ball1也忽视
+                if ball1.coor.shape[0] > 1000:
+                    ball = ball2
+                else:
+                    ball = repCheck(ball1, ball2)
             else:
-                ball = repCheck(ball1, ball2)
-        else:
-            ball = repCheck(ball0, ball1)
-            ball = repCheck(ball, ball2)
-        ball = repCheck(ball, ball3)
-        # ball = repCheck(ball, ball5)
+                ball = repCheck(ball0, ball1)
+                ball = repCheck(ball, ball2)
+            ball = repCheck(ball, ball3)
+            # ball = repCheck(ball, ball5)
         nodeFound, nodeShould, nodeNegative = nodeCheck(ball=ball, nodesCenter=nodesCenter)
         # 累加统计
         founds += nodeFound
