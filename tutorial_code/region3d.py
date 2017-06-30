@@ -108,7 +108,7 @@ def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
     # nthNode = 2
     # nthNode = 1
     nthNode = 0
-    nthNode = 10
+    # nthNode = 10
     # nthNode = 4
 
     if ifplot:
@@ -361,14 +361,14 @@ negatives = 0
 for img_file in file_list:
     # debug时候针对特定mhd数据处理，并且作图；
     # 注意因为有for循环，debug模式一定要在debug模式下开启
-    # debugMode = False
-    debugMode = True
+    debugMode = False
+    # debugMode = True
 
     ifplot = False
     if debugMode:
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00192.mhd'
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00168.mhd'
-        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00730.mhd'
+        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00030.mhd'
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00100.mhd'
         ifplot = True
     print("")
@@ -503,9 +503,9 @@ for img_file in file_list:
         # 将坐标提取归入extractNodeCenter函数
         nodesCenter = extractNodeCenter(mini_df)
 
-        p0 = Param(erosionTimes=0, areamin=15, areamax=1000, dmin=2.5)
-        p1 = Param(erosionTimes=1, areamin=6, areamax=1500, dmin=2.0)
-        p2 = Param(erosionTimes=2, areamin=4, areamax=1500, dmin=2.0)
+        p0 = Param(erosionTimes=0, areamin=10, areamax=3000, dmin=2.5)
+        p1 = Param(erosionTimes=1, areamin=6, areamax=3000, dmin=2.0)
+        p2 = Param(erosionTimes=2, areamin=4, areamax=3000, dmin=2.0)
         p3 = Param(erosionTimes=3, areamin=2, areamax=15000, dmin=2.0)
         p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
 
@@ -519,14 +519,13 @@ for img_file in file_list:
                                  ifplot=ifplot)
             if th > 0:
                 break
-            if ball0.coor.shape[0] < 5:
+            if ball0.coor.shape[0] < 2:
                 th += 200
                 print("  # # # 修正th为{} # # #".format(th))
             else:
                 break
 
         ball = Ball()
-        th = 0
         if th < 0:
             # 实际上ballProposal中nodesCenter参数仅供debug模式作图查看真正结节前后的几帧图像，正式版将移除
             # 目前调用了3次ballProposal，实际上ball3作用很小，主要是为检出贴边较大结节，因为通过erosion或可将贴边的缺口闭合
