@@ -20,6 +20,7 @@
 
 from __future__ import print_function, division
 from scipy.ndimage.morphology import binary_erosion, binary_dilation
+import re
 
 # from tutorial_code.lung_segmentation import *
 try:
@@ -38,6 +39,14 @@ import matplotlib.pyplot as plt
 from skimage.filters import gaussian, median
 from mpl_toolkits.mplot3d import Axes3D
 from skimage import measure, morphology
+
+############
+# 全局
+
+luna_path = r"/media/soffo/本地磁盘/tc/val/"
+# luna_path = r"/media/soffo/本地磁盘/tc/train/"
+luna_subset_path = luna_path + 'data/'
+file_list = glob(luna_subset_path + "*.mhd")
 
 
 def largest_label_volume(im, bg=-1):
@@ -107,9 +116,9 @@ def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
     # nthNode为待查看结节序号（结合log信息中should:nthNode）
     # nthNode = 2
     # nthNode = 1
-    # nthNode = 0
+    nthNode = 0
     # nthNode = 4
-    nthNode = 9
+    # nthNode = 9
     # nthNode = 10
 
 
@@ -122,9 +131,9 @@ def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
             plt.imshow(img_array[int(nodesCenter[nthNode][2]) + 10 - j])
             # plt.show()
 
+    # contentLabels = measure.label(segmented_lungs_content, connectivity=1)
     # contentLabels = measure.label(segmented_lungs_content, connectivity=2)
-    contentLabels = measure.label(segmented_lungs_content, connectivity=1)
-    # contentLabels = measure.label(segmented_lungs_content, connectivity=3)
+    contentLabels = measure.label(segmented_lungs_content, connectivity=3)
     region3d = measure.regionprops(contentLabels)
 
     # check region 3d
@@ -171,23 +180,25 @@ def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
             print("{} - aera:{}\t - \tcentroid:{}\t - \tequivalent_d:{}\t - \textent:{}\t - bbox:{}".format(
                 region.label, region.area, region.centroid, region.equivalent_diameter, region.extent,
                 region.bbox))
-        if param.areamin <= region.area <= param.areamax:
-            if param.dmin <= region.equivalent_diameter <= param.dmin + 40:
-                # 按理说经过多次erosion的，extent约束要适当加强
-                if 0.08 <= region.extent:
-                    rb = region.bbox
-                    a = rb[3] - rb[0]
-                    # spacing resize !!
-                    a *= 3
-                    b = rb[4] - rb[1]
-                    c = rb[5] - rb[2]
-                    rectCoef = a / b + b / c + c / a
-                    if 3.0 <= rectCoef <= 6.0:
-                        # print(rectCoef,end='  -  ')
-                        cregion.append(region)
-                        xyz = np.array([region.centroid[2], region.centroid[1], region.centroid[0]])
-                        cxyz.append(xyz)
-                        dia.append(region.equivalent_diameter)
+        if 5 < region.centroid[0] < segmented_lungs_content.shape[0] - 5 and 100 < region.centroid[1] < 400 and 100 < \
+                region.centroid[2] < 400:
+            if param.areamin <= region.area <= param.areamax:
+                if param.dmin <= region.equivalent_diameter <= param.dmin + 40:
+                    # 按理说经过多次erosion的，extent约束要适当加强
+                    if 0.08 <= region.extent:
+                        rb = region.bbox
+                        a = rb[3] - rb[0]
+                        # spacing resize !!
+                        a *= 3
+                        b = rb[4] - rb[1]
+                        c = rb[5] - rb[2]
+                        rectCoef = a / b + b / c + c / a
+                        if 3.0 <= rectCoef <= 6.0:
+                            # print(rectCoef,end='  -  ')
+                            cregion.append(region)
+                            xyz = np.array([region.centroid[2], region.centroid[1], region.centroid[0]])
+                            cxyz.append(xyz)
+                            dia.append(region.equivalent_diameter)
 
     dia = np.array(dia)
     cxyz = np.array(cxyz)
@@ -205,8 +216,9 @@ def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
 
 # ballProposal基本参数
 class Param:
-    def __init__(self, erosionTimes=1, areamin=5, areamax=15000, dmin=2.0):
+    def __init__(self, erosionTimes=1, extent=0.1, areamin=5, areamax=15000, dmin=2.0):
         self.erosionTimes = erosionTimes
+        self.extent = extent
         self.areamin = areamin
         self.areamax = areamax
         self.dmin = dmin
@@ -221,46 +233,49 @@ class Ball:
 
 
 # repetition check
-def repCheck(ballOld, ballNew):
+def repCheck(ballOld, ballNew, protectDistance=10.0):
     # D = 15.0
-    D = 20.0
-    ballNewLight = np.zeros(ballNew.coor.shape[0]).astype(bool)
-    for i, xyzNew in enumerate(ballNew.coor):
-        cnorm = np.linalg.norm(ballOld.coor - xyzNew, axis=1)
-        isrep = np.sum(cnorm < D).astype(bool)
-        ballNewLight[i] += isrep
-    ballNew.coor = ballNew.coor[~ballNewLight]
-    ballNew.dia = ballNew.dia[~ballNewLight]
-    balls = Ball(coor=np.r_[ballOld.coor, ballNew.coor], dia=np.r_[ballOld.dia, ballNew.dia])
-    return balls
+    # D = 20.0
+    if ballNew.coor.shape[0] > 0:
+        ballNewLight = np.zeros(ballNew.coor.shape[0]).astype(bool)
+        for i, xyzNew in enumerate(ballNew.coor):
+            cnorm = np.linalg.norm(ballOld.coor - xyzNew, axis=1)
+            isrep = np.sum(cnorm < protectDistance).astype(bool)
+            ballNewLight[i] += isrep
+        ballNew.coor = ballNew.coor[~ballNewLight]
+        ballNew.dia = ballNew.dia[~ballNewLight]
+        balls = Ball(coor=np.r_[ballOld.coor, ballNew.coor], dia=np.r_[ballOld.dia, ballNew.dia])
+        return balls
+    else:
+        return ballOld
 
 
 # 其实基本逻辑同repCheck相似，不过return不同，有待抽取相同逻辑
 # ball->node的check函数
-def nodeCheck(ball, nodesCenter):
+def nodeCheck(ball, nodesCenter, protectDistance=10.0):
     nodesCenterLight = np.zeros(nodesCenter.shape[0]).astype(bool)
     nodeShould = len(nodesCenter)
     nodeFound = 0
     nodeNegative = 0
     if ball.coor.shape[0] > 0:
-        # D 相当于CFAR的保护单元
+        # D-> protectDistance 相当于CFAR的保护单元，在此范围内都不作为负样本
         # 现采用方式为两坐标距离平方和<D认为是同一结节
         # 注！：后续可考虑修正为半径覆盖范围内认为同一结节
         # D = 15.0
-        D = 20.0
+        # D = 20.0
         coorLight = np.zeros(ball.coor.shape[0]).astype(bool)
 
         for i, nc in enumerate(nodesCenter):
             cnorm = np.linalg.norm(ball.coor - nc, axis=1)
-            isFounds = (cnorm < D)
+            isFounds = (cnorm < protectDistance)
             isFound = np.sum(isFounds).astype(bool)
             coorLight += isFounds
             nodesCenterLight[i] += isFound
         nodeFound = np.sum(nodesCenterLight)
-        nodeNegative = len(ball.coor)
         # 找到的都扔掉
         ball.coor = ball.coor[~coorLight]
         ball.dia = ball.dia[~coorLight]
+        nodeNegative = len(ball.coor)
 
     # 打印找出的点，为了后续对比
     print('''            \t{}
@@ -271,7 +286,7 @@ def nodeCheck(ball, nodesCenter):
 
 # ------------------------------------------------------
 
-def extractNodeCenter(mini_df):
+def extractNodeCenter(mini_df, ifprint=False):
     # 每个node标记出位置，marker选用其他
     nodesCenter = []
     for node_idx, cur_row in mini_df.iterrows():
@@ -284,7 +299,6 @@ def extractNodeCenter(mini_df):
         center = np.array([node_x, node_y, node_z])  # nodule center
         # 将标注转化为在图片中像素位置
         center = (center - origin) / spacing
-
         # 下面为以前程序，这里暂时不需要
         # # rint 为就近取整
         # v_center = np.rint(center)  # nodule center in voxel space (still x,y,z ordering)
@@ -315,26 +329,31 @@ def extractNodeCenter(mini_df):
         #
         # # plt.show()
         # # ax.scatter3D(x, y, z, color='r', marker='.')
-
         nodesCenter.append(center)
-    for i, center in enumerate(nodesCenter):
-        print("should:{}\t{}".format(i, center))
+    if ifprint:
+        for i, center in enumerate(nodesCenter):
+            print("should:{}\t{}".format(i, center))
 
     return np.array(nodesCenter)
 
 
-############
-#
-# Getting list of image files
-# luna_path = r"/media/soffo/MEDIA/tcdata/"
-# luna_path = r"/media/soffo/本地磁盘/tc/val/"
-luna_path = r"/media/soffo/本地磁盘/tc/train/"
-# luna_path = r"/home/soffo/Documents/codes/minidata/"
-luna_subset_path = luna_path + 'data/'
-output_path = luna_path + 'tutorial/'
-luna_subset_path = luna_path + 'data/'
-output_path = luna_path + 'tutorial/'
-file_list = glob(luna_subset_path + "*.mhd")
+###
+def cubeCut(coor, img_array, outfilename='test'):
+    cubexhalf = 16
+    cubeyhalf = 16
+    cubezhalf = 5
+    cubes = np.zeros((coor.shape[0], 2 * cubezhalf, 2 * cubexhalf, 2 * cubeyhalf))
+    for i, c in enumerate(coor):
+        bcx = int(np.rint(c[0]))
+        bcy = int(np.rint(c[1]))
+        bcz = int(np.rint(c[2]))
+        # 因为不对img处理，这里仅采用浅拷贝即可
+        # 在没做spaing之前，z不好控制
+        # 暂采用10×32×32的size
+        img = img_array[bcz - cubezhalf:bcz + cubezhalf, bcx - cubexhalf:bcx + cubexhalf,
+              bcy - cubeyhalf:bcy + cubeyhalf]
+        cubes[i] = img
+    np.save(luna_path + 'cubes/' + outfilename + '.npy', cubes)
 
 
 #####################
@@ -347,32 +366,25 @@ def get_filename(file_list, case):
             return (f)
 
 
-df_node = pd.read_csv(luna_path + "csv/train/annotations.csv")
+# df_node = pd.read_csv(luna_path + "csv/train/annotations.csv")
+df_node = pd.read_csv(luna_path + "csv/val/annotations.csv")
 df_node["file"] = df_node["seriesuid"].map(lambda file_name: get_filename(file_list, file_name))
 df_node = df_node.dropna()
-
-#####
-#
-# Looping over the image files
-#
-
 
 founds = 0
 shoulds = 0
 negatives = 0
-for img_file in file_list:
+for img_file in tqdm(file_list):
     # debug时候针对特定mhd数据处理，并且作图；
     # 注意因为有for循环，debug模式一定要在debug模式下开启
     debugMode = False
     # debugMode = True
 
-    ifplot = False
     if debugMode:
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00192.mhd'
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00168.mhd'
-        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00730.mhd'
-        # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00100.mhd'
-        ifplot = True
+        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00847.mhd'
+        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00105.mhd'
     print("")
     print("on mhd -- " + img_file)
     mini_df = df_node[df_node["file"] == img_file]  # get all nodules associate with file
@@ -503,24 +515,24 @@ for img_file in file_list:
         # # 破坏了实际形状，使mask更倾向于球状（是好是坏呢？毕竟只是mask，目标是检测出来所有可疑结点）
 
         # 将坐标提取归入extractNodeCenter函数
-        nodesCenter = extractNodeCenter(mini_df)
+        nodesCenter = extractNodeCenter(mini_df, ifprint=True)
 
-        p0 = Param(erosionTimes=0, areamin=10, areamax=3000, dmin=2.5)
-        p1 = Param(erosionTimes=1, areamin=6, areamax=3000, dmin=2.0)
+        p0 = Param(erosionTimes=0, extent=0.3, areamin=10, areamax=3000, dmin=2.5)
+        p1 = Param(erosionTimes=1, extent=0.3, areamin=6, areamax=3000, dmin=2.0)
         p2 = Param(erosionTimes=2, areamin=4, areamax=3000, dmin=2.0)
         p3 = Param(erosionTimes=3, areamin=2, areamax=15000, dmin=2.0)
         p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
 
         # 二值化门限设置
         th = -600
-        ball0 = Ball()
+
         # 这里的while循环为解决th门限对某些数据集太低，使得太多区域过了th
         while True:
             # 主要耗时1
             segmented_lungs = segment_lung_mask(img_array, threshold=th, fill_lung_structures=False)
             # 主要耗时2
             ball0 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p0,
-                                 ifplot=ifplot)
+                                 ifplot=debugMode)
             if th > 0:
                 break
             if ball0.coor.shape[0] < 2:
@@ -534,12 +546,13 @@ for img_file in file_list:
             # 实际上ballProposal中nodesCenter参数仅供debug模式作图查看真正结节前后的几帧图像，正式版将移除
             # 目前调用了3次ballProposal，实际上ball3作用很小，主要是为检出贴边较大结节，因为通过erosion或可将贴边的缺口闭合
             ball1 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p1,
-                                 ifplot=ifplot)
+                                 ifplot=debugMode)
             ball2 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p2,
-                                 ifplot=ifplot)
+                                 ifplot=debugMode)
             ball3 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p3,
-                                 ifplot=ifplot)
-            ball5 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p5, ifplot=ifplot)
+                                 ifplot=debugMode)
+            ball5 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p5,
+                                 ifplot=debugMode)
             #
             # ball0采用p0参数，通常候选太多，当超过1000候选，可以做erosion大量减少；忽视ball0
             if ball0.coor.shape[0] > 1000:
@@ -553,7 +566,18 @@ for img_file in file_list:
                 ball = repCheck(ball, ball2)
             ball = repCheck(ball, ball3)
             ball = repCheck(ball, ball5)
-        nodeFound, nodeShould, nodeNegative = nodeCheck(ball=ball, nodesCenter=nodesCenter)
+
+        # protectDistance 意义在于node 32像素范围内的ball都视为找到node
+        # 这里于d无关，因为考虑到裁剪是按照固定大小32像素裁剪（前提是做spacing统一尺寸）
+        nodeFound, nodeShould, nodeNegative = nodeCheck(ball=ball, nodesCenter=nodesCenter, protectDistance=32.0)
+
+        # !负样本选取：
+        # 上面对于每个mhd文件提取了ball坐标，下面进行cut
+        # 认为nodeFound=0以及nodeNegative太大的，是因为数据不好
+        # 应该对这些不好数据重新处理，这里为简便直接跳过；待后续修改。
+        mhdname = re.split('\.|/', img_file)[-2]
+        if nodeFound > 0 and nodeNegative < 800:
+            cubeCut(coor=ball.coor, img_array=img_array, outfilename='neg/neg' + mhdname)
         # 累加统计
         founds += nodeFound
         shoulds += nodeShould
