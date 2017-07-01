@@ -43,8 +43,8 @@ from skimage import measure, morphology
 ############
 # 全局
 
-luna_path = r"/media/soffo/本地磁盘/tc/val/"
-# luna_path = r"/media/soffo/本地磁盘/tc/train/"
+# luna_path = r"/media/soffo/本地磁盘/tc/val/"
+luna_path = r"/media/soffo/本地磁盘/tc/train/"
 luna_subset_path = luna_path + 'data/'
 file_list = glob(luna_subset_path + "*.mhd")
 
@@ -115,8 +115,8 @@ def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
     # 结合图片考察亮斑（结节）查出情况
     # nthNode为待查看结节序号（结合log信息中should:nthNode）
     # nthNode = 2
-    # nthNode = 1
-    nthNode = 0
+    nthNode = 1
+    # nthNode = 0
     # nthNode = 4
     # nthNode = 9
     # nthNode = 10
@@ -180,8 +180,8 @@ def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
             print("{} - aera:{}\t - \tcentroid:{}\t - \tequivalent_d:{}\t - \textent:{}\t - bbox:{}".format(
                 region.label, region.area, region.centroid, region.equivalent_diameter, region.extent,
                 region.bbox))
-        if 5 < region.centroid[0] < segmented_lungs_content.shape[0] - 5 and 100 < region.centroid[1] < 400 and 100 < \
-                region.centroid[2] < 400:
+        if 5 < region.centroid[0] < segmented_lungs_content.shape[0] - 5 and 50 < region.centroid[1] < 470 and 50 < \
+                region.centroid[2] < 470:
             if param.areamin <= region.area <= param.areamax:
                 if param.dmin <= region.equivalent_diameter <= param.dmin + 40:
                     # 按理说经过多次erosion的，extent约束要适当加强
@@ -204,12 +204,12 @@ def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
     cxyz = np.array(cxyz)
     balls = Ball(coor=cxyz, dia=dia)
 
-    if ifplot:
-        print("------------------ balls -------------------")
-        for region in cregion:
-            print("{} - aera:{}\t - \tcentroid:{}\t - \tequivalent_d:{}\t - \textent:{}\t - bbox:{}".format(
-                region.label, region.area, region.centroid, region.equivalent_diameter, region.extent,
-                region.bbox))
+    # if ifplot:
+    #     print("------------------ balls -------------------")
+    #     for region in cregion:
+    #         print("{} - aera:{}\t - \tcentroid:{}\t - \tequivalent_d:{}\t - \textent:{}\t - bbox:{}".format(
+    #             region.label, region.area, region.centroid, region.equivalent_diameter, region.extent,
+    #             region.bbox))
 
     return balls
 
@@ -366,8 +366,8 @@ def get_filename(file_list, case):
             return (f)
 
 
-# df_node = pd.read_csv(luna_path + "csv/train/annotations.csv")
-df_node = pd.read_csv(luna_path + "csv/val/annotations.csv")
+df_node = pd.read_csv(luna_path + "csv/train/annotations.csv")
+# df_node = pd.read_csv(luna_path + "csv/val/annotations.csv")
 df_node["file"] = df_node["seriesuid"].map(lambda file_name: get_filename(file_list, file_name))
 df_node = df_node.dropna()
 
@@ -384,7 +384,7 @@ for img_file in tqdm(file_list):
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00192.mhd'
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00168.mhd'
         img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00847.mhd'
-        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00105.mhd'
+        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00096.mhd'
     print("")
     print("on mhd -- " + img_file)
     mini_df = df_node[df_node["file"] == img_file]  # get all nodules associate with file
@@ -517,11 +517,11 @@ for img_file in tqdm(file_list):
         # 将坐标提取归入extractNodeCenter函数
         nodesCenter = extractNodeCenter(mini_df, ifprint=True)
 
-        p0 = Param(erosionTimes=0, extent=0.3, areamin=10, areamax=3000, dmin=2.5)
-        p1 = Param(erosionTimes=1, extent=0.3, areamin=6, areamax=3000, dmin=2.0)
-        p2 = Param(erosionTimes=2, areamin=4, areamax=3000, dmin=2.0)
+        p0 = Param(erosionTimes=0, extent=0.2, areamin=10, areamax=4000, dmin=2.5)
+        p1 = Param(erosionTimes=1, extent=0.1, areamin=6, areamax=4000, dmin=2.0)
+        p2 = Param(erosionTimes=2, areamin=4, areamax=4000, dmin=2.0)
         p3 = Param(erosionTimes=3, areamin=2, areamax=15000, dmin=2.0)
-        p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
+        # p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
 
         # 二值化门限设置
         th = -600
@@ -551,8 +551,8 @@ for img_file in tqdm(file_list):
                                  ifplot=debugMode)
             ball3 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p3,
                                  ifplot=debugMode)
-            ball5 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p5,
-                                 ifplot=debugMode)
+            # ball5 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p5,
+            #                      ifplot=debugMode)
             #
             # ball0采用p0参数，通常候选太多，当超过1000候选，可以做erosion大量减少；忽视ball0
             if ball0.coor.shape[0] > 1000:
@@ -565,7 +565,7 @@ for img_file in tqdm(file_list):
                 ball = repCheck(ball0, ball1)
                 ball = repCheck(ball, ball2)
             ball = repCheck(ball, ball3)
-            ball = repCheck(ball, ball5)
+            # ball = repCheck(ball, ball5)
 
         # protectDistance 意义在于node 32像素范围内的ball都视为找到node
         # 这里于d无关，因为考虑到裁剪是按照固定大小32像素裁剪（前提是做spacing统一尺寸）

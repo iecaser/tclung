@@ -85,7 +85,8 @@ elif mode == '2':
     while True:
         img_file = input(working_path+'{文件}：')
         img_file = working_path+img_file
-        imgs = np.load(img_file).astype(np.float32)
+        # imgs = np.load(img_file).astype(np.float32)
+        imgs = np.load(img_file)
         plt.subplot(131)
         plt.imshow(imgs[0])
         plt.colorbar()

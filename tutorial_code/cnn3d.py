@@ -28,34 +28,54 @@ from keras.layers import Dense, Dropout, Flatten
 from keras.layers import Conv2D, MaxPooling2D, Conv3D, MaxPooling3D, Convolution3D, MaxPool3D
 from keras.callbacks import ModelCheckpoint
 from keras.optimizers import Adam
+from keras.preprocessing.image import ImageDataGenerator
+from sklearn.model_selection import train_test_split
 
 # # Generate dummy data
-# x_train = np.random.random((100, 10, 32, 32, 1))
-# y_train = keras.utils.to_categorical(np.random.randint(10, size=(100, 1)), num_classes=10)
-# x_test = np.random.random((20, 10, 32, 32, 1))
-# y_test = keras.utils.to_categorical(np.random.randint(10, size=(20, 1)), num_classes=10)
+# xTrain = np.random.random((100, 1, 10, 32, 32))
+# yTrain = np.random.randint(2, size=(100, 1))
+# xTest = np.random.random((20, 1, 10, 32, 32))
+# yTest = np.random.randint(2, size=(20, 1))
+
+# real data
 working_path = "/media/soffo/本地磁盘/tc/train/cubes/"
 val_path = "/media/soffo/本地磁盘/tc/val/cubes/"
-xneg = np.load(working_path+'neg/negLKDS-00335.npy')
+xneg = np.load(working_path + 'negbackup/merge/' + 'neg0.npy')
 yneg = np.zeros(xneg.shape[0])
-xpos = np.load(working_path+'posAll.npy')
-ypos = np.zeros(xpos.shape[0])
+# test 阶段控制1：20正负样本
+xpos = np.load(working_path + 'posAll.npy')[:200]
+ypos = np.ones(xpos.shape[0])
+
+datax = np.r_[xneg, xpos]
+datay = np.r_[yneg, ypos]
+xTrain, xTest, yTrain, yTest = train_test_split(datax, datay)
+xTrainmean = np.mean(xTrain)
+xTrainstd = np.std(xTrain)
+xTrain -= xTrainmean
+xTrain /= xTrainstd
+xTest -= xTrainmean
+xTest /= xTrainstd
 
 model = Sequential()
-# input: 100x100 images with 3 channels -> (100, 100, 3) tensors.
-# this applies 32 convolution filters of size 3x3 each.
-model.add(Conv3D(64, (3, 3, 3), activation='relu', input_shape=(10, 32, 32, 1), padding='same'))
+model.add(Conv3D(32, (3, 3, 3), activation='relu', input_shape=(1, 10, 32, 32), padding='same'))
 model.add(Conv3D(64, (3, 3, 3), activation='relu', padding='same'))
 model.add(MaxPool3D(pool_size=(2, 2, 2)))
 # model.add(Dropout(0.25))
+model.add(Conv3D(128, (3, 3, 3), activation='relu', padding='same'))
+model.add(Conv3D(256, (3, 3, 3), activation='relu', padding='same'))
+model.add(MaxPool3D(pool_size=(2, 2, 2)))
 
 model.add(Flatten())
+model.add(Dense(512, activation='relu'))
+model.add(Dropout(0.5))
 model.add(Dense(256, activation='relu'))
 model.add(Dropout(0.5))
-model.add(Dense(10, activation='softmax'))
+model.add(Dense(1, activation='sigmoid'))
 
-model.compile(loss='categorical_crossentropy', optimizer=Adam(lr=1.0e-4),metrics=['accuracy'])
+# model.compile(loss='categorical_crossentropy', optimizer=Adam(lr=1.0e-4), metrics=['accuracy'])
+model.compile(loss='binary_crossentropy', optimizer=Adam(lr=1.0e-5), metrics=['binary_accuracy'])
 
-model_checkpoint = ModelCheckpoint('/media/soffo/本地磁盘/tc/train/log/net3d.hdf5', monitor='val_loss', save_best_only=True)
-model.fit(x_train, y_train, batch_size=1, epochs=50, verbose=1, shuffle=True,
-          callbacks=[model_checkpoint], validation_data=[x_test, y_test])
+model_checkpoint = ModelCheckpoint('/media/soffo/本地磁盘/tc/train/log/net3d.hdf5', monitor='val_loss',
+                                   save_best_only=True)
+model.fit(xTrain, yTrain, batch_size=2, epochs=30, verbose=1, shuffle=True,
+          callbacks=[model_checkpoint], validation_data=[xTest, yTest])
