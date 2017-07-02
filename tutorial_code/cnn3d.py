@@ -30,6 +30,8 @@ from keras.callbacks import ModelCheckpoint
 from keras.optimizers import Adam
 from keras.preprocessing.image import ImageDataGenerator
 from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
+
 
 # # Generate dummy data
 # xTrain = np.random.random((100, 1, 10, 32, 32))
@@ -45,6 +47,21 @@ yneg = np.zeros(xneg.shape[0])
 # test 阶段控制1：20正负样本
 xpos = np.load(working_path + 'posAll.npy')[:200]
 ypos = np.ones(xpos.shape[0])
+
+for x in xpos:
+    for xx in x[0]:
+        plt.subplots()
+        plt.imshow(xx)
+
+for x in xneg:
+    for xx in x[0]:
+        plt.subplots()
+        plt.imshow(xx)
+
+
+
+
+
 
 datax = np.r_[xneg, xpos]
 datay = np.r_[yneg, ypos]

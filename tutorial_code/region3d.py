@@ -43,8 +43,8 @@ from skimage import measure, morphology
 ############
 # 全局
 
-# luna_path = r"/media/soffo/本地磁盘/tc/val/"
-luna_path = r"/media/soffo/本地磁盘/tc/train/"
+luna_path = r"/media/soffo/本地磁盘/tc/val/"
+# luna_path = r"/media/soffo/本地磁盘/tc/train/"
 luna_subset_path = luna_path + 'data/'
 file_list = glob(luna_subset_path + "*.mhd")
 
@@ -366,8 +366,8 @@ def get_filename(file_list, case):
             return (f)
 
 
-df_node = pd.read_csv(luna_path + "csv/train/annotations.csv")
-# df_node = pd.read_csv(luna_path + "csv/val/annotations.csv")
+# df_node = pd.read_csv(luna_path + "csv/train/annotations.csv")
+df_node = pd.read_csv(luna_path + "csv/val/annotations.csv")
 df_node["file"] = df_node["seriesuid"].map(lambda file_name: get_filename(file_list, file_name))
 df_node = df_node.dropna()
 

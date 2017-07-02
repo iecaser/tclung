@@ -85,6 +85,7 @@ def nodeCubeCut(coor, img_array):
         # 暂采用10×32×32的size
         img = img_array[bcz - cubezhalf:bcz + cubezhalf, bcx - cubexhalf:bcx + cubexhalf,
               bcy - cubeyhalf:bcy + cubeyhalf]
+        plt.imshow(img)
         cubes[i][0] = img
     # np.save(luna_path + 'cubes/' + outfilename + '.npy', cubes)
     return cubes
@@ -110,8 +111,8 @@ cubes.shape = (0, 1, 10, 32, 32)
 for img_file in tqdm(file_list):
     # debug时候针对特定mhd数据处理，并且作图；
     # 注意因为有for循环，debug模式一定要在debug模式下开启
-    debugMode = False
-    # debugMode = True
+    # debugMode = False
+    debugMode = True
 
     if debugMode:
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00192.mhd'
