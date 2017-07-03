@@ -294,11 +294,13 @@ def extractNodeCenter(mini_df, ifprint=False):
         node_y = cur_row["coordY"]
         node_z = cur_row["coordZ"]
         diam = cur_row["diameter_mm"]
-        # just keep 3 slices
 
         center = np.array([node_x, node_y, node_z])  # nodule center
         # 将标注转化为在图片中像素位置
-        center = (center - origin) / spacing
+        # !注意center,origin,spacing都是xyz排序
+        # center = (center - origin) / spacing
+        # 注意当做了resample之后，这里需要做此更改
+        center = (center - origin)
         # 下面为以前程序，这里暂时不需要
         # # rint 为就近取整
         # v_center = np.rint(center)  # nodule center in voxel space (still x,y,z ordering)
@@ -342,7 +344,7 @@ def cubeCut(coor, img_array, outfilename='test'):
     cubexhalf = 16
     cubeyhalf = 16
     cubezhalf = 5
-    cubes = np.zeros((coor.shape[0], 2 * cubezhalf, 2 * cubexhalf, 2 * cubeyhalf))
+    cubes = np.zeros((coor.shape[0], 1, 2 * cubezhalf, 2 * cubexhalf, 2 * cubeyhalf))
     for i, c in enumerate(coor):
         bcx = int(np.rint(c[0]))
         bcy = int(np.rint(c[1]))
@@ -352,8 +354,20 @@ def cubeCut(coor, img_array, outfilename='test'):
         # 暂采用10×32×32的size
         img = img_array[bcz - cubezhalf:bcz + cubezhalf, bcy - cubeyhalf:bcy + cubeyhalf,
               bcx - cubexhalf:bcx + cubexhalf]
-        cubes[i] = img
+        cubes[i][0] = img
     np.save(luna_path + 'cubes/' + outfilename + '.npy', cubes)
+
+
+from scipy.ndimage.interpolation import zoom
+
+
+def resample(imgs, spacing, order=2):
+    # spacing 输入为xyz排序，变换为zyx
+    spacing = np.array(list(reversed(spacing)))
+    newShape = np.round(imgs.shape * spacing)
+    resizeFactor = newShape / imgs.shape
+    imgs = zoom(imgs, resizeFactor, mode='nearest', order=order)
+    return imgs
 
 
 #####################
@@ -377,14 +391,14 @@ negatives = 0
 for img_file in tqdm(file_list):
     # debug时候针对特定mhd数据处理，并且作图；
     # 注意因为有for循环，debug模式一定要在debug模式下开启
-    debugMode = False
-    # debugMode = True
+    # debugMode = False
+    debugMode = True
 
     if debugMode:
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00192.mhd'
-        # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00168.mhd'
-        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00847.mhd'
-        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00096.mhd'
+        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00168.mhd'
+        # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00847.mhd'
+        # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00096.mhd'
     print("")
     print("on mhd -- " + img_file)
     mini_df = df_node[df_node["file"] == img_file]  # get all nodules associate with file
@@ -397,6 +411,11 @@ for img_file in tqdm(file_list):
         num_z, height, width = img_array.shape  # heightXwidth constitute the transverse plane
         origin = np.array(itk_img.GetOrigin())  # x,y,z  Origin in world coordinates (mm)
         spacing = np.array(itk_img.GetSpacing())  # spacing of voxels in world coor. (mm)
+        img_array = resample(img_array, spacing=spacing, order=1)
+        # for img in img_array:
+        #     plt.subplots()
+        #     plt.imshow(img)
+
 
         # 以下代码仅为初期探索，已移除
         # img_array = gaussian(img_array)
