@@ -43,8 +43,8 @@ from skimage import measure, morphology
 ############
 # 全局
 
-luna_path = r"/media/soffo/本地磁盘/tc/val/"
-# luna_path = r"/media/soffo/本地磁盘/tc/train/"
+# luna_path = r"/media/soffo/本地磁盘/tc/val/"
+luna_path = r"/media/soffo/本地磁盘/tc/train/"
 luna_subset_path = luna_path + 'data/'
 file_list = glob(luna_subset_path + "*.mhd")
 
@@ -350,8 +350,8 @@ def cubeCut(coor, img_array, outfilename='test'):
         # 因为不对img处理，这里仅采用浅拷贝即可
         # 在没做spaing之前，z不好控制
         # 暂采用10×32×32的size
-        img = img_array[bcz - cubezhalf:bcz + cubezhalf, bcx - cubexhalf:bcx + cubexhalf,
-              bcy - cubeyhalf:bcy + cubeyhalf]
+        img = img_array[bcz - cubezhalf:bcz + cubezhalf, bcy - cubeyhalf:bcy + cubeyhalf,
+              bcx - cubexhalf:bcx + cubexhalf]
         cubes[i] = img
     np.save(luna_path + 'cubes/' + outfilename + '.npy', cubes)
 
@@ -366,8 +366,8 @@ def get_filename(file_list, case):
             return (f)
 
 
-# df_node = pd.read_csv(luna_path + "csv/train/annotations.csv")
-df_node = pd.read_csv(luna_path + "csv/val/annotations.csv")
+df_node = pd.read_csv(luna_path + "csv/train/annotations.csv")
+# df_node = pd.read_csv(luna_path + "csv/val/annotations.csv")
 df_node["file"] = df_node["seriesuid"].map(lambda file_name: get_filename(file_list, file_name))
 df_node = df_node.dropna()
 

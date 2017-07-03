@@ -42,6 +42,11 @@ import matplotlib.pyplot as plt
 # real data
 working_path = "/media/soffo/本地磁盘/tc/train/cubes/"
 val_path = "/media/soffo/本地磁盘/tc/val/cubes/"
+cubexhalf = 16
+cubeyhalf = 16
+cubezhalf = 5
+
+
 xneg = np.load(working_path + 'negbackup/merge/' + 'neg0.npy')
 yneg = np.zeros(xneg.shape[0])
 # test 阶段控制1：20正负样本
@@ -60,9 +65,6 @@ for x in xneg:
 
 
 
-
-
-
 datax = np.r_[xneg, xpos]
 datay = np.r_[yneg, ypos]
 xTrain, xTest, yTrain, yTest = train_test_split(datax, datay)
@@ -74,7 +76,7 @@ xTest -= xTrainmean
 xTest /= xTrainstd
 
 model = Sequential()
-model.add(Conv3D(32, (3, 3, 3), activation='relu', input_shape=(1, 10, 32, 32), padding='same'))
+model.add(Conv3D(32, (3, 3, 3), activation='relu', input_shape=(1, cubezhalf*2, cubexhalf*2, cubeyhalf*2), padding='same'))
 model.add(Conv3D(64, (3, 3, 3), activation='relu', padding='same'))
 model.add(MaxPool3D(pool_size=(2, 2, 2)))
 # model.add(Dropout(0.25))

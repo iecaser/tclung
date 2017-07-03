@@ -41,13 +41,15 @@ from skimage import measure, morphology
 ############
 # 全局
 
-luna_path = r"/media/soffo/本地磁盘/tc/val/"
-# luna_path = r"/media/soffo/本地磁盘/tc/train/"
+# luna_path = r"/media/soffo/本地磁盘/tc/val/"
+luna_path = r"/media/soffo/本地磁盘/tc/train/"
 
 luna_subset_path = luna_path + 'data/'
 output_path = luna_path + 'tutorial/'
 file_list = glob(luna_subset_path + "*.mhd")
-
+cubexhalf = 16
+cubeyhalf = 16
+cubezhalf = 5
 
 # ------------------------------------------------------
 
@@ -72,9 +74,7 @@ def extractNodeCenter(mini_df, ifprint=False):
 
 ###
 def nodeCubeCut(coor, img_array):
-    cubexhalf = 16
-    cubeyhalf = 16
-    cubezhalf = 5
+
     cubes = np.zeros((coor.shape[0], 1, 2 * cubezhalf, 2 * cubexhalf, 2 * cubeyhalf))
     for i, c in enumerate(coor):
         bcx = int(np.rint(c[0]))
@@ -83,9 +83,8 @@ def nodeCubeCut(coor, img_array):
         # 因为不对img处理，这里仅采用浅拷贝即可
         # 在没做spaing之前，z不好控制
         # 暂采用10×32×32的size
-        img = img_array[bcz - cubezhalf:bcz + cubezhalf, bcx - cubexhalf:bcx + cubexhalf,
-              bcy - cubeyhalf:bcy + cubeyhalf]
-        plt.imshow(img)
+        img = img_array[bcz - cubezhalf:bcz + cubezhalf, bcy - cubeyhalf:bcy + cubeyhalf,
+              bcx - cubexhalf:bcx + cubexhalf]
         cubes[i][0] = img
     # np.save(luna_path + 'cubes/' + outfilename + '.npy', cubes)
     return cubes
@@ -101,18 +100,18 @@ def get_filename(file_list, case):
             return (f)
 
 
-# df_node = pd.read_csv(luna_path + "csv/train/annotations.csv")
-df_node = pd.read_csv(luna_path + "csv/val/annotations.csv")
+df_node = pd.read_csv(luna_path + "csv/train/annotations.csv")
+# df_node = pd.read_csv(luna_path + "csv/val/annotations.csv")
 df_node["file"] = df_node["seriesuid"].map(lambda file_name: get_filename(file_list, file_name))
 df_node = df_node.dropna()
 
 cubes = np.array([])
-cubes.shape = (0, 1, 10, 32, 32)
+cubes.shape = (0, 1, cubezhalf*2, cubexhalf*2, cubeyhalf*2)
 for img_file in tqdm(file_list):
     # debug时候针对特定mhd数据处理，并且作图；
     # 注意因为有for循环，debug模式一定要在debug模式下开启
-    # debugMode = False
-    debugMode = True
+    debugMode = False
+    # debugMode = True
 
     if debugMode:
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00192.mhd'
