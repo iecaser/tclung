@@ -37,6 +37,7 @@ import matplotlib.pyplot as plt
 from skimage.filters import gaussian, median
 from mpl_toolkits.mplot3d import Axes3D
 from skimage import measure, morphology
+from scipy.ndimage.interpolation import zoom
 
 ############
 # 全局
@@ -49,22 +50,55 @@ output_path = luna_path + 'tutorial/'
 file_list = glob(luna_subset_path + "*.mhd")
 cubexhalf = 16
 cubeyhalf = 16
-cubezhalf = 5
+cubezhalf = 16
 
 
-# ------------------------------------------------------
-
-def extractNodeCenter(mini_df, ifprint=False):
+###
+def extractNodeCenter(mini_df, origin, ifprint=False):
     # 每个node标记出位置，marker选用其他
     nodesCenter = []
     for node_idx, cur_row in mini_df.iterrows():
         node_x = cur_row["coordX"]
         node_y = cur_row["coordY"]
         node_z = cur_row["coordZ"]
-        # diam = cur_row["diameter_mm"]
+        diam = cur_row["diameter_mm"]
+
         center = np.array([node_x, node_y, node_z])  # nodule center
         # 将标注转化为在图片中像素位置
-        center = (center - origin) / spacing
+        # !注意center,origin,spacing都是xyz排序
+        # center = (center - origin) / spacing
+        # 注意当做了resample之后，这里需要做此更改
+        center = (center - origin)
+        # 下面为以前程序，这里暂时不需要
+        # # rint 为就近取整
+        # v_center = np.rint(center)  # nodule center in voxel space (still x,y,z ordering)
+        # vx = int(v_center[0])
+        # vy = int(v_center[1])
+        # vz = int(v_center[2])
+        # img = img_array[vz]
+        # mask = make_mask(center, diam, vz * spacing[2] + origin[2],
+        #                  width, height, spacing, origin)
+        # plt.subplots()
+        # plt.subplot(131)
+        # plt.title('original_image')
+        # # img.shape为1*512*512,下面mask也是
+        # plt.imshow(img)
+        # plt.colorbar()
+        # # print(img[0])
+        #
+        # plt.subplot(132)
+        # plt.title('node_mask')
+        # plt.imshow(mask)
+        # plt.colorbar()
+        # # print(img_mask[0])
+        #
+        # plt.subplot(133)
+        # plt.title('original_image  ×  node_mask')
+        # plt.imshow(mask * img)
+        # plt.colorbar()
+        #
+        # # plt.show()
+        # # ax.scatter3D(x, y, z, color='r', marker='.')
         nodesCenter.append(center)
     if ifprint:
         for i, center in enumerate(nodesCenter):
@@ -72,8 +106,6 @@ def extractNodeCenter(mini_df, ifprint=False):
 
     return np.array(nodesCenter)
 
-
-###
 
 def nodeCubeCut(coor, img_array, expandCoef=8, vibration=5):
     # -----------------------------------
@@ -98,10 +130,33 @@ def nodeCubeCut(coor, img_array, expandCoef=8, vibration=5):
         # 在没做spaing之前，z不好控制
         # 暂采用10×32×32的size
         for j in range(expandCoef):
-            img = img_array[bcz - cubezhalf + bcv[j][2]:bcz + cubezhalf + bcv[j][2],
-                  bcy - cubeyhalf + bcv[j][1]:bcy + cubeyhalf + bcv[j][1],
-                  bcx - cubexhalf + bcv[j][0]:bcx + cubexhalf + bcv[j][0]]
-            if img.shape[0]<1:
+            z1 = bcz - cubezhalf + bcv[j][2]
+            z2 = bcz + cubezhalf + bcv[j][2]
+            y1 = bcy - cubeyhalf + bcv[j][1]
+            y2 = bcy + cubeyhalf + bcv[j][1]
+            x1 = bcx - cubexhalf + bcv[j][0]
+            x2 = bcx + cubexhalf + bcv[j][0]
+            if z1 < 0:
+                z1 = 0
+                z2 = cubezhalf * 2
+            if z2 > img_array.shape[0]:
+                z2 = img_array.shape[0]
+                z1 = z2 - cubezhalf * 2
+            if y1 < 0:
+                y1 = 0
+                y2 = cubeyhalf * 2
+            if y2 > img_array.shape[1]:
+                y2 = img_array.shape[1]
+                y1 = y2 - cubeyhalf * 2
+            if x1 < 0:
+                x1 = 0
+                x2 = cubexhalf * 2
+            if x2 > img_array.shape[2]:
+                x2 = img_array.shape[2]
+                x1 = x2 - cubexhalf * 2
+
+            img = img_array[z1:z2, y1:y2, x1:x2]
+            if np.sum(img.shape)<32*3:
                 print(i)
                 print(j)
                 print(bcx)
@@ -122,6 +177,15 @@ def get_filename(file_list, case):
     for f in file_list:
         if case in f:
             return (f)
+
+
+def resample(imgs, spacing, order=2):
+    # spacing 输入为xyz排序，变换为zyx
+    spacing = np.array(list(reversed(spacing)))
+    newShape = np.round(imgs.shape * spacing)
+    resizeFactor = newShape / imgs.shape
+    imgs = zoom(imgs, resizeFactor, mode='nearest', order=order)
+    return imgs
 
 
 def poscubeCut():
@@ -152,7 +216,8 @@ def poscubeCut():
             num_z, height, width = img_array.shape  # heightXwidth constitute the transverse plane
             origin = np.array(itk_img.GetOrigin())  # x,y,z  Origin in world coordinates (mm)
             spacing = np.array(itk_img.GetSpacing())  # spacing of voxels in world coor. (mm)
-            nodesCenter = extractNodeCenter(mini_df)
+            img_array = resample(img_array, spacing=spacing, order=1)
+            nodesCenter = extractNodeCenter(mini_df, origin=origin)
             # !正样本选取：
             newcube = nodeCubeCut(coor=nodesCenter, img_array=img_array, expandCoef=8, vibration=5)
             cubes = np.r_[cubes, newcube]

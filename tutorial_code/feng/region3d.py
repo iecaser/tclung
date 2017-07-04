@@ -39,6 +39,7 @@ import matplotlib.pyplot as plt
 from skimage.filters import gaussian, median
 from mpl_toolkits.mplot3d import Axes3D
 from skimage import measure, morphology
+from scipy.ndimage.interpolation import zoom
 
 ############
 # 全局
@@ -46,6 +47,10 @@ from skimage import measure, morphology
 # luna_path = r"/media/soffo/本地磁盘/tc/val/"
 luna_path = r"/media/soffo/本地磁盘/tc/train/"
 luna_subset_path = luna_path + 'data/'
+cubexhalf = 16
+cubeyhalf = 16
+cubezhalf = 16
+
 file_list = glob(luna_subset_path + "*.mhd")
 
 
@@ -104,6 +109,59 @@ def segment_lung_mask(image, threshold=-600, fill_lung_structures=True):
     return binary_image
 
 
+def extractNodeCenter(mini_df, origin, ifprint=False):
+    # 每个node标记出位置，marker选用其他
+    nodesCenter = []
+    for node_idx, cur_row in mini_df.iterrows():
+        node_x = cur_row["coordX"]
+        node_y = cur_row["coordY"]
+        node_z = cur_row["coordZ"]
+        diam = cur_row["diameter_mm"]
+
+        center = np.array([node_x, node_y, node_z])  # nodule center
+        # 将标注转化为在图片中像素位置
+        # !注意center,origin,spacing都是xyz排序
+        # center = (center - origin) / spacing
+        # 注意当做了resample之后，这里需要做此更改
+        center = (center - origin)
+        # 下面为以前程序，这里暂时不需要
+        # # rint 为就近取整
+        # v_center = np.rint(center)  # nodule center in voxel space (still x,y,z ordering)
+        # vx = int(v_center[0])
+        # vy = int(v_center[1])
+        # vz = int(v_center[2])
+        # img = img_array[vz]
+        # mask = make_mask(center, diam, vz * spacing[2] + origin[2],
+        #                  width, height, spacing, origin)
+        # plt.subplots()
+        # plt.subplot(131)
+        # plt.title('original_image')
+        # # img.shape为1*512*512,下面mask也是
+        # plt.imshow(img)
+        # plt.colorbar()
+        # # print(img[0])
+        #
+        # plt.subplot(132)
+        # plt.title('node_mask')
+        # plt.imshow(mask)
+        # plt.colorbar()
+        # # print(img_mask[0])
+        #
+        # plt.subplot(133)
+        # plt.title('original_image  ×  node_mask')
+        # plt.imshow(mask * img)
+        # plt.colorbar()
+        #
+        # # plt.show()
+        # # ax.scatter3D(x, y, z, color='r', marker='.')
+        nodesCenter.append(center)
+    if ifprint:
+        for i, center in enumerate(nodesCenter):
+            print("should:{}\t{}".format(i, center))
+
+    return np.array(nodesCenter)
+
+
 # ------------------------------------------------------
 def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
     # -------- 下面都是提取亮斑的步骤 --------------
@@ -115,8 +173,8 @@ def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
     # 结合图片考察亮斑（结节）查出情况
     # nthNode为待查看结节序号（结合log信息中should:nthNode）
     # nthNode = 2
-    nthNode = 1
-    # nthNode = 0
+    # nthNode = 1
+    nthNode = 0
     # nthNode = 4
     # nthNode = 9
     # nthNode = 10
@@ -166,6 +224,7 @@ def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
     #   - 太小说明形状奇特。
     # 3. bbox限定
     #   - 注意条状region的extent也可以较大，有必要直接根据bbox做长宽高比限定
+
     cregion = []
     cxyz = []
     dia = []
@@ -180,20 +239,24 @@ def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
             print("{} - aera:{}\t - \tcentroid:{}\t - \tequivalent_d:{}\t - \textent:{}\t - bbox:{}".format(
                 region.label, region.area, region.centroid, region.equivalent_diameter, region.extent,
                 region.bbox))
-        if 5 < region.centroid[0] < segmented_lungs_content.shape[0] - 5 and 50 < region.centroid[1] < 470 and 50 < \
-                region.centroid[2] < 470:
+        # 条件1:坐标和边界
+        if cubezhalf < region.centroid[0] < segmented_lungs_content.shape[0] - cubezhalf and cubeyhalf < \
+                region.centroid[1] < segmented_lungs_content.shape[1] - cubeyhalf and cubexhalf < \
+                region.centroid[2] < segmented_lungs_content.shape[2] - cubeyhalf:
+            # 条件2:所占像素点区域大小
             if param.areamin <= region.area <= param.areamax:
-                if param.dmin <= region.equivalent_diameter <= param.dmin + 40:
+                # 条件3:等效直径大小
+                if param.dmin <= region.equivalent_diameter <= param.dmin + 35:
+                    # 条件4:占空比
                     # 按理说经过多次erosion的，extent约束要适当加强
-                    if 0.08 <= region.extent:
+                    if param.extent <= region.extent:
                         rb = region.bbox
                         a = rb[3] - rb[0]
-                        # spacing resize !!
-                        a *= 3
                         b = rb[4] - rb[1]
                         c = rb[5] - rb[2]
                         rectCoef = a / b + b / c + c / a
-                        if 3.0 <= rectCoef <= 6.0:
+                        # 条件5:接近正立方体(均值不等式)
+                        if 3.0 <= rectCoef <= 5.0:
                             # print(rectCoef,end='  -  ')
                             cregion.append(region)
                             xyz = np.array([region.centroid[2], region.centroid[1], region.centroid[0]])
@@ -286,64 +349,14 @@ def nodeCheck(ball, nodesCenter, protectDistance=10.0):
 
 # ------------------------------------------------------
 
-def extractNodeCenter(mini_df, ifprint=False):
-    # 每个node标记出位置，marker选用其他
-    nodesCenter = []
-    for node_idx, cur_row in mini_df.iterrows():
-        node_x = cur_row["coordX"]
-        node_y = cur_row["coordY"]
-        node_z = cur_row["coordZ"]
-        diam = cur_row["diameter_mm"]
 
-        center = np.array([node_x, node_y, node_z])  # nodule center
-        # 将标注转化为在图片中像素位置
-        # !注意center,origin,spacing都是xyz排序
-        # center = (center - origin) / spacing
-        # 注意当做了resample之后，这里需要做此更改
-        center = (center - origin)
-        # 下面为以前程序，这里暂时不需要
-        # # rint 为就近取整
-        # v_center = np.rint(center)  # nodule center in voxel space (still x,y,z ordering)
-        # vx = int(v_center[0])
-        # vy = int(v_center[1])
-        # vz = int(v_center[2])
-        # img = img_array[vz]
-        # mask = make_mask(center, diam, vz * spacing[2] + origin[2],
-        #                  width, height, spacing, origin)
-        # plt.subplots()
-        # plt.subplot(131)
-        # plt.title('original_image')
-        # # img.shape为1*512*512,下面mask也是
-        # plt.imshow(img)
-        # plt.colorbar()
-        # # print(img[0])
-        #
-        # plt.subplot(132)
-        # plt.title('node_mask')
-        # plt.imshow(mask)
-        # plt.colorbar()
-        # # print(img_mask[0])
-        #
-        # plt.subplot(133)
-        # plt.title('original_image  ×  node_mask')
-        # plt.imshow(mask * img)
-        # plt.colorbar()
-        #
-        # # plt.show()
-        # # ax.scatter3D(x, y, z, color='r', marker='.')
-        nodesCenter.append(center)
-    if ifprint:
-        for i, center in enumerate(nodesCenter):
-            print("should:{}\t{}".format(i, center))
-
-    return np.array(nodesCenter)
 
 
 ###
 def cubeCut(coor, img_array, outfilename='test'):
     cubexhalf = 16
     cubeyhalf = 16
-    cubezhalf = 5
+    cubezhalf = 16
     cubes = np.zeros((coor.shape[0], 1, 2 * cubezhalf, 2 * cubexhalf, 2 * cubeyhalf))
     for i, c in enumerate(coor):
         bcx = int(np.rint(c[0]))
@@ -356,9 +369,6 @@ def cubeCut(coor, img_array, outfilename='test'):
               bcx - cubexhalf:bcx + cubexhalf]
         cubes[i][0] = img
     np.save(luna_path + 'cubes/' + outfilename + '.npy', cubes)
-
-
-from scipy.ndimage.interpolation import zoom
 
 
 def resample(imgs, spacing, order=2):
@@ -391,14 +401,14 @@ negatives = 0
 for img_file in tqdm(file_list):
     # debug时候针对特定mhd数据处理，并且作图；
     # 注意因为有for循环，debug模式一定要在debug模式下开启
-    # debugMode = False
-    debugMode = True
+    debugMode = False
+    # debugMode = True
 
     if debugMode:
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00192.mhd'
-        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00168.mhd'
+        # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00168.mhd'
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00847.mhd'
-        # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00096.mhd'
+        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00120.mhd'
     print("")
     print("on mhd -- " + img_file)
     mini_df = df_node[df_node["file"] == img_file]  # get all nodules associate with file
@@ -412,6 +422,7 @@ for img_file in tqdm(file_list):
         origin = np.array(itk_img.GetOrigin())  # x,y,z  Origin in world coordinates (mm)
         spacing = np.array(itk_img.GetSpacing())  # spacing of voxels in world coor. (mm)
         img_array = resample(img_array, spacing=spacing, order=1)
+
         # for img in img_array:
         #     plt.subplots()
         #     plt.imshow(img)
@@ -534,12 +545,15 @@ for img_file in tqdm(file_list):
         # # 破坏了实际形状，使mask更倾向于球状（是好是坏呢？毕竟只是mask，目标是检测出来所有可疑结点）
 
         # 将坐标提取归入extractNodeCenter函数
-        nodesCenter = extractNodeCenter(mini_df, ifprint=True)
 
-        p0 = Param(erosionTimes=0, extent=0.2, areamin=10, areamax=4000, dmin=2.5)
-        p1 = Param(erosionTimes=1, extent=0.1, areamin=6, areamax=4000, dmin=2.0)
-        p2 = Param(erosionTimes=2, areamin=4, areamax=4000, dmin=2.0)
-        p3 = Param(erosionTimes=3, areamin=2, areamax=15000, dmin=2.0)
+        nodesCenter = extractNodeCenter(mini_df, origin=origin, ifprint=True)
+
+        # 参数设定
+        # 试图用不erosion的进行小结节提取,多次erosion的进行大结节提取
+        p0 = Param(erosionTimes=0, extent=0.3, areamin=10, areamax=4000, dmin=2.5)
+        p1 = Param(erosionTimes=1, extent=0.3, areamin=6, areamax=4000, dmin=2.0)
+        p2 = Param(erosionTimes=2, extent=0.2, areamin=4, areamax=4000, dmin=1.0)
+        p3 = Param(erosionTimes=3, extent=0.2, areamin=2, areamax=15000, dmin=1.0)
         # p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
 
         # 二值化门限设置
@@ -597,7 +611,7 @@ for img_file in tqdm(file_list):
         mhdname = re.split('\.|/', img_file)[-2]
         if nodeFound > 0 and nodeNegative < 800:
             cubeCut(coor=ball.coor, img_array=img_array, outfilename='neg/neg' + mhdname)
-        # 累加统计
+        # # 累加统计
         founds += nodeFound
         shoulds += nodeShould
         negatives += nodeNegative

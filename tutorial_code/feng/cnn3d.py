@@ -39,7 +39,7 @@ working_path = "/media/soffo/本地磁盘/tc/train/cubes/"
 val_path = "/media/soffo/本地磁盘/tc/val/cubes/"
 cubexhalf = 16
 cubeyhalf = 16
-cubezhalf = 5
+cubezhalf = 16
 
 
 def get3dcnn():
