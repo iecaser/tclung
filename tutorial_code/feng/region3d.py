@@ -43,9 +43,12 @@ from scipy.ndimage.interpolation import zoom
 
 ############
 # 全局
+path = 'val/'
+# path = 'train/'
 
-# luna_path = r"/media/soffo/本地磁盘/tc/val/"
-luna_path = r"/media/soffo/本地磁盘/tc/train/"
+luna_path = r"/media/soffo/本地磁盘/tc/" + path
+df_node = pd.read_csv(luna_path + "csv/" + path + "annotations.csv")
+
 luna_subset_path = luna_path + 'data/'
 cubexhalf = 16
 cubeyhalf = 16
@@ -390,8 +393,6 @@ def get_filename(file_list, case):
             return (f)
 
 
-df_node = pd.read_csv(luna_path + "csv/train/annotations.csv")
-# df_node = pd.read_csv(luna_path + "csv/val/annotations.csv")
 df_node["file"] = df_node["seriesuid"].map(lambda file_name: get_filename(file_list, file_name))
 df_node = df_node.dropna()
 
@@ -550,55 +551,58 @@ for img_file in tqdm(file_list):
 
         # 参数设定
         # 试图用不erosion的进行小结节提取,多次erosion的进行大结节提取
-        p0 = Param(erosionTimes=0, extent=0.3, areamin=10, areamax=4000, dmin=2.5)
-        p1 = Param(erosionTimes=1, extent=0.3, areamin=6, areamax=4000, dmin=2.0)
+        p0 = Param(erosionTimes=0, extent=0.2, areamin=6, areamax=4000, dmin=2.0)
+        p1 = Param(erosionTimes=1, extent=0.2, areamin=6, areamax=4000, dmin=2.0)
         p2 = Param(erosionTimes=2, extent=0.2, areamin=4, areamax=4000, dmin=1.0)
         p3 = Param(erosionTimes=3, extent=0.2, areamin=2, areamax=15000, dmin=1.0)
         # p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
+        # # 参数设定
+        # # 试图用不erosion的进行小结节提取,多次erosion的进行大结节提取
+        # p0 = Param(erosionTimes=0, extent=0.3, areamin=10, areamax=4000, dmin=2.5)
+        # p1 = Param(erosionTimes=1, extent=0.3, areamin=6, areamax=4000, dmin=2.0)
+        # p2 = Param(erosionTimes=2, extent=0.2, areamin=4, areamax=4000, dmin=1.0)
+        # p3 = Param(erosionTimes=3, extent=0.2, areamin=2, areamax=15000, dmin=1.0)
+        # # p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
 
         # 二值化门限设置
         th = -600
 
         # 这里的while循环为解决th门限对某些数据集太低，使得太多区域过了th
-        while True:
-            # 主要耗时1
-            segmented_lungs = segment_lung_mask(img_array, threshold=th, fill_lung_structures=False)
-            # 主要耗时2
-            ball0 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p0,
-                                 ifplot=debugMode)
-            if th > 0:
-                break
-            if ball0.coor.shape[0] < 2:
-                th += 200
-                print("  # # # 修正th为{} # # #".format(th))
-            else:
-                break
 
+        # 主要耗时1
+        segmented_lungs = segment_lung_mask(img_array, threshold=th, fill_lung_structures=False)
+        # 主要耗时2
+        ball0 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p0,
+                             ifplot=debugMode)
+        if ball0.coor.shape[0] < 2:
+            print("-" * 40)
+            print(img_file + '获取proposal失败!!')
+            print("-" * 40)
+            continue
         ball = Ball()
-        if th < 0:
-            # 实际上ballProposal中nodesCenter参数仅供debug模式作图查看真正结节前后的几帧图像，正式版将移除
-            # 目前调用了3次ballProposal，实际上ball3作用很小，主要是为检出贴边较大结节，因为通过erosion或可将贴边的缺口闭合
-            ball1 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p1,
-                                 ifplot=debugMode)
-            ball2 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p2,
-                                 ifplot=debugMode)
-            ball3 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p3,
-                                 ifplot=debugMode)
-            # ball5 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p5,
-            #                      ifplot=debugMode)
-            #
-            # ball0采用p0参数，通常候选太多，当超过1000候选，可以做erosion大量减少；忽视ball0
-            if ball0.coor.shape[0] > 1000:
-                # 候选太多则ball1也忽视
-                if ball1.coor.shape[0] > 1000:
-                    ball = ball2
-                else:
-                    ball = repCheck(ball1, ball2)
+        # 实际上ballProposal中nodesCenter参数仅供debug模式作图查看真正结节前后的几帧图像，正式版将移除
+        # 目前调用了3次ballProposal，实际上ball3作用很小，主要是为检出贴边较大结节，因为通过erosion或可将贴边的缺口闭合
+        ball1 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p1,
+                             ifplot=debugMode)
+        ball2 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p2,
+                             ifplot=debugMode)
+        ball3 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p3,
+                             ifplot=debugMode)
+        # ball5 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p5,
+        #                      ifplot=debugMode)
+        #
+        # ball0采用p0参数，通常候选太多，当超过1000候选，可以做erosion大量减少；忽视ball0
+        if ball0.coor.shape[0] > 1000:
+            # 候选太多则ball1也忽视
+            if ball1.coor.shape[0] > 1000:
+                ball = ball2
             else:
-                ball = repCheck(ball0, ball1)
-                ball = repCheck(ball, ball2)
-            ball = repCheck(ball, ball3)
-            # ball = repCheck(ball, ball5)
+                ball = repCheck(ball1, ball2)
+        else:
+            ball = repCheck(ball0, ball1)
+            ball = repCheck(ball, ball2)
+        ball = repCheck(ball, ball3)
+        # ball = repCheck(ball, ball5)
 
         # protectDistance 意义在于node 32像素范围内的ball都视为找到node
         # 这里于d无关，因为考虑到裁剪是按照固定大小32像素裁剪（前提是做spacing统一尺寸）
@@ -609,7 +613,8 @@ for img_file in tqdm(file_list):
         # 认为nodeFound=0以及nodeNegative太大的，是因为数据不好
         # 应该对这些不好数据重新处理，这里为简便直接跳过；待后续修改。
         mhdname = re.split('\.|/', img_file)[-2]
-        if nodeFound > 0 and nodeNegative < 800:
+        # if nodeFound > 0 and nodeNegative < 800:
+        if nodeNegative < 800:
             cubeCut(coor=ball.coor, img_array=img_array, outfilename='neg/neg' + mhdname)
         # # 累加统计
         founds += nodeFound

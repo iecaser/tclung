@@ -32,8 +32,9 @@ from keras.preprocessing.image import ImageDataGenerator
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
-
-
+from glob import glob
+import numpy as np
+import re
 # real data
 working_path = "/media/soffo/本地磁盘/tc/train/cubes/"
 val_path = "/media/soffo/本地磁盘/tc/val/cubes/"
@@ -54,11 +55,10 @@ def get3dcnn():
     model.add(MaxPool3D(pool_size=(2, 2, 2)))
 
     model.add(Conv3D(512, (3, 3, 3), activation='relu', padding='same'))
-    model.add(Conv3D(256, (3, 3, 3), activation='relu', padding='same'))
     model.add(MaxPool3D(pool_size=(2, 2, 2)))
 
     model.add(Flatten())
-    model.add(Dense(512, activation='relu'))
+    model.add(Dense(1024, activation='relu'))
     model.add(Dropout(0.5))
     # model.add(Dense(256, activation='relu'))
     # model.add(Dropout(0.5))
@@ -70,32 +70,51 @@ def get3dcnn():
 
 
 def cnntrain(use_existing=False):
+    print('-' * 30)
+    print('Loading data ...')
+    print('-' * 30)
     xneg = np.load(working_path + 'negbackup/merge/' + 'neg0.npy')
+    # xneg0 = np.load(working_path + 'negbackup/merge/' + 'neg0.npy')
+    # xneg1 = np.load(working_path + 'negbackup/merge/' + 'neg1.npy')
+    # xneg = np.r_[xneg0, xneg1]
+    # yneg = np.zeros(xneg.shape[0]).astype(dtype=float)
     yneg = np.zeros(xneg.shape[0]).astype(dtype=float)
     # test 阶段控制1：20正负样本
-    xpos = np.load(working_path +'posbackup/'+ 'posAll.npy')
+    xposall = np.load(working_path + 'posbackup/' + 'posAll.npy')
+    xposx = np.load(working_path + 'posbackup/' + 'posxcubes.npy')
+    # xposy = np.load(working_path + 'posbackup/' + 'posycubes.npy')
+    # xposxy = np.load(working_path + 'posbackup/' + 'posxycubes.npy')
+    xpos = np.r_[xposall, xposx]
     ypos = np.ones(xpos.shape[0]).astype(dtype=float)
 
     # double check cube数据是否是结点样式
-    for x in xpos:
-        for xx in x[0]:
-            plt.subplots()
-            plt.imshow(xx)
-    for x in xneg:
-        for xx in x[0]:
-            plt.subplots()
-            plt.imshow(xx)
-
+    # for x in xpos:
+    #     for xx in x[0]:
+    #         plt.subplots()
+    #         plt.imshow(xx)
+    # for x in xneg:
+    #     for xx in x[0]:
+    #         plt.subplots()
+    #         plt.imshow(xx)
 
     datax = np.r_[xneg, xpos]
     datay = np.r_[yneg, ypos]
     xTrain, xTest, yTrain, yTest = train_test_split(datax, datay)
-    xTrainmean = np.mean(xTrain)
-    xTrainstd = np.std(xTrain)
-    xTrain -= xTrainmean
-    xTrain /= xTrainstd
-    xTest -= xTrainmean
-    xTest /= xTrainstd
+    # xTrainmean = np.mean(xTrain)
+    # xTrainstd = np.std(xTrain)
+    # xTrain -= xTrainmean
+    # xTrain /= xTrainstd
+    # xTest -= xTrainmean
+    # xTest /= xTrainstd
+
+    # n = 100
+    # m = 30
+    # xTrain = np.random.rand(n, 1, 32, 32, 32)
+    # yTrain = np.random.randint(0, 2, n)
+    # xTest = np.random.rand(m, 1, 32, 32, 32)
+    # yTest = np.random.randint(0, 2, m)
+
+
 
     model_checkpoint = ModelCheckpoint('/media/soffo/本地磁盘/tc/train/log/net3d.hdf5', monitor='val_loss',
                                        save_best_only=True)
@@ -103,41 +122,31 @@ def cnntrain(use_existing=False):
     model = get3dcnn()
     if use_existing:
         model.load_weights('/media/soffo/本地磁盘/tc/train/log/net3d.hdf5')
-    model.fit(xTrain, yTrain, batch_size=2, epochs=100, verbose=1, shuffle=True,
+    model.fit(xTrain, yTrain, batch_size=3, epochs=50, verbose=1, shuffle=True,
               callbacks=[model_checkpoint, earlystop], validation_data=[xTest, yTest])
+    return model
 
 
-from glob import glob
-import numpy as np
-import re
 
 
 def cnnpredict():
     print('-' * 30)
-    print('Predicting masks on test data...')
+    print('Predicting ...')
     print('-' * 30)
-
-    working_path = "/media/soffo/本地磁盘/tc/train/cubes/negbackup/merge/"
-    working_path = "/media/soffo/本地磁盘/tc/train/cubes/posbackup/"
     cubexhalf = 16
     cubeyhalf = 16
-    cubezhalf = 5
-    file_list = glob(working_path + "*.npy")
+    cubezhalf = 16
+    file_list = glob(val_path + "*.npy")
     model = get3dcnn()
     model.load_weights('/media/soffo/本地磁盘/tc/train/log/net3d.hdf5')
     for i, cubefile in enumerate(file_list):
         cubes = np.load(cubefile)
         filename = re.split('\.|/', cubefile)[-2][3:]
-        coef = model.predict_proba(cubes)
-        print(coef[coef > 0.1])
-        # for cube in cubes:
-        #     model.predict(cube)
+        coef = model.predict(cubes)
+        np.save('./{}coef.npy'.format(filename), coef)
+        print(cubefile)
+        print(coef)
 
-
-        # for img in
 
 # cnntrain(use_existing=True)
-# cnntrain(use_existing=False)
-cnnpredict()
-
-
+model = cnntrain(use_existing=False)
