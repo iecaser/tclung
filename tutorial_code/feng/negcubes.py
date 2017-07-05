@@ -22,11 +22,12 @@ from glob import glob
 import numpy as np
 from tqdm import tqdm
 
+# working_path = "/media/soffo/本地磁盘/tc/val/cubes/negbackup/"
 working_path = "/media/soffo/本地磁盘/tc/train/cubes/negbackup/"
 cubexhalf = 16
 cubeyhalf = 16
 cubezhalf = 16
-sumsize = 300
+sumsize = 200
 
 file_list = glob(working_path + "*.npy")
 data = np.array([])

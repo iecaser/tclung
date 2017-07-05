@@ -35,9 +35,11 @@ import matplotlib.pyplot as plt
 from glob import glob
 import numpy as np
 import re
+
 # real data
-working_path = "/media/soffo/本地磁盘/tc/train/cubes/"
-val_path = "/media/soffo/本地磁盘/tc/val/cubes/"
+train_path = "/media/soffo/本地磁盘/tc/train/"
+val_path = "/media/soffo/本地磁盘/tc/val/"
+test_path = "/media/soffo/本地磁盘/tc/test/"
 cubexhalf = 16
 cubeyhalf = 16
 cubezhalf = 16
@@ -69,84 +71,105 @@ def get3dcnn():
     return model
 
 
-def cnntrain(use_existing=False):
-    print('-' * 30)
-    print('Loading data ...')
-    print('-' * 30)
-    xneg = np.load(working_path + 'negbackup/merge/' + 'neg0.npy')
-    # xneg0 = np.load(working_path + 'negbackup/merge/' + 'neg0.npy')
-    # xneg1 = np.load(working_path + 'negbackup/merge/' + 'neg1.npy')
-    # xneg = np.r_[xneg0, xneg1]
-    # yneg = np.zeros(xneg.shape[0]).astype(dtype=float)
-    yneg = np.zeros(xneg.shape[0]).astype(dtype=float)
-    # test 阶段控制1：20正负样本
-    xposall = np.load(working_path + 'posbackup/' + 'posAll.npy')
-    xposx = np.load(working_path + 'posbackup/' + 'posxcubes.npy')
-    # xposy = np.load(working_path + 'posbackup/' + 'posycubes.npy')
-    # xposxy = np.load(working_path + 'posbackup/' + 'posxycubes.npy')
-    xpos = np.r_[xposall, xposx]
-    ypos = np.ones(xpos.shape[0]).astype(dtype=float)
-
-    # double check cube数据是否是结点样式
-    # for x in xpos:
-    #     for xx in x[0]:
-    #         plt.subplots()
-    #         plt.imshow(xx)
-    # for x in xneg:
-    #     for xx in x[0]:
-    #         plt.subplots()
-    #         plt.imshow(xx)
-
-    datax = np.r_[xneg, xpos]
-    datay = np.r_[yneg, ypos]
-    xTrain, xTest, yTrain, yTest = train_test_split(datax, datay)
-    # xTrainmean = np.mean(xTrain)
-    # xTrainstd = np.std(xTrain)
-    # xTrain -= xTrainmean
-    # xTrain /= xTrainstd
-    # xTest -= xTrainmean
-    # xTest /= xTrainstd
-
-    # n = 100
-    # m = 30
-    # xTrain = np.random.rand(n, 1, 32, 32, 32)
-    # yTrain = np.random.randint(0, 2, n)
-    # xTest = np.random.rand(m, 1, 32, 32, 32)
-    # yTest = np.random.randint(0, 2, m)
+# def loaddata():
+#     print('-' * 30)
+#     print('Loading data ...')
+#     print('-' * 30)
+#
+#     xneg = np.load(working_path + 'negbackup0704-0.8/merge/' + 'neg0.npy')
+#     yneg = np.zeros(xneg.shape[0]).astype(dtype=float)
+#     xpos = np.load(working_path + 'posbackup/' + 'posAll.npy')
+#     # xposall = np.load(working_path + 'posbackup/' + 'posAll.npy')
+#     # xposx = np.load(working_path + 'posbackup/' + 'posxcubes.npy')
+#     # xposy = np.load(working_path + 'posbackup/' + 'posycubes.npy')
+#     # xposxy = np.load(working_path + 'posbackup/' + 'posxycubes.npy')
+#     # xpos = np.r_[xposall, xposx]
+#     ypos = np.ones(xpos.shape[0]).astype(dtype=float)
+#
+#     # double check cube数据是否是结点样式
+#     # for x in xpos:
+#     #     for xx in x[0]:
+#     #         plt.subplots()
+#     #         plt.imshow(xx)
+#     # for x in xneg:
+#     #     for xx in x[0]:
+#     #         plt.subplots()
+#     #         plt.imshow(xx)
+#
+#     xneg = np.r_[xneg, xpos]
+#     yneg = np.r_[yneg, ypos]
+#     xTrain, xTest, yTrain, yTest = train_test_split(xneg, yneg)
+#     xTrainmean = np.mean(xTrain)
+#     xTrainstd = np.std(xTrain)
+#     xTrain -= xTrainmean
+#     xTrain /= xTrainstd
+#     xTest -= xTrainmean
+#     xTest /= xTrainstd
+#     return xTrain, yTrain, xTest, yTest
 
 
+def cnntrain(xtrain, ytrain, xval, yval, use_existing=False):
 
+    xtrain = np.load('/media/soffo/本地磁盘/tc/train/cubes/datagen/xtrain.npy')
+    ytrain = np.load('/media/soffo/本地磁盘/tc/train/cubes/datagen/ytrain.npy')
+    xval = np.load('/media/soffo/本地磁盘/tc/val/cubes/datagen/xval.npy')
+    yval = np.load('/media/soffo/本地磁盘/tc/val/cubes/datagen/yval.npy')
     model_checkpoint = ModelCheckpoint('/media/soffo/本地磁盘/tc/train/log/net3d.hdf5', monitor='val_loss',
                                        save_best_only=True)
     earlystop = EarlyStopping(monitor='val_loss', min_delta=0, patience=5, verbose=1, mode='auto')
     model = get3dcnn()
     if use_existing:
         model.load_weights('/media/soffo/本地磁盘/tc/train/log/net3d.hdf5')
-    model.fit(xTrain, yTrain, batch_size=3, epochs=50, verbose=1, shuffle=True,
-              callbacks=[model_checkpoint, earlystop], validation_data=[xTest, yTest])
+    model.fit(xtrain, ytrain, batch_size=3, epochs=50, verbose=1, shuffle=True,
+              callbacks=[model_checkpoint, earlystop], validation_data=[xval, yval])
     return model
 
 
-
-
-def cnnpredict():
-    print('-' * 30)
+def cnnpredict(working_path=test_path):
+    print('-' * 50)
     print('Predicting ...')
-    print('-' * 30)
+    print('-' * 50)
     cubexhalf = 16
     cubeyhalf = 16
     cubezhalf = 16
-    file_list = glob(val_path + "*.npy")
+    file_list = glob(working_path +'cubes/neg/*.npy')
+    # file_list = glob(val_path +'posbackup/'+ "*.npy")
     model = get3dcnn()
     model.load_weights('/media/soffo/本地磁盘/tc/train/log/net3d.hdf5')
     for i, cubefile in enumerate(file_list):
         cubes = np.load(cubefile)
+        cubemean = np.mean(cubes)
+        cubestd = np.std(cubes)
+        cubes -= cubemean
+        cubes /= cubestd
         filename = re.split('\.|/', cubefile)[-2][3:]
+        # 按照cubes顺序得到的coef
+        # coornpy和dianpy文件也是按照这个顺序
         coef = model.predict(cubes)
-        np.save('./{}coef.npy'.format(filename), coef)
-        print(cubefile)
-        print(coef)
+        coef = coef.flatten()
+        # 默认argsort是升序,取负保证index对于+coef而言是降序
+        index = np.argsort(-coef)
+        coef = coef[index]
+        coor = np.load(working_path+'coor/coor{}.npy'.format(filename))
+        coor = coor[index]
+        dia = np.load(working_path+'dia/dia{}.npy'.format(filename))
+        dia = dia[index]
+        # np.save(working_path+'coef/coef{}.npy'.format(filename), coef)
+
+        # debug
+        print(filename)
+        print('-'*50)
+        print('coef:')
+        print(coef[:10])
+        print('coor:')
+        print(coor[:10])
+        print('dia')
+        print(dia[:10])
 
 
-# cnntrain(use_existing=True)
-model = cnntrain(use_existing=False)
+# load data
+# xTrain, yTrain, xTest, yTest = loaddata()
+# train
+# model = cnntrain(xTrain, yTrain, xTest, yTest, use_existing=False)
+# predict
+cnnpredict(working_path=val_path)

@@ -45,9 +45,9 @@ from scipy.ndimage.interpolation import zoom
 # 全局
 path = 'val/'
 # path = 'train/'
+# path = 'test/'
 
 luna_path = r"/media/soffo/本地磁盘/tc/" + path
-df_node = pd.read_csv(luna_path + "csv/" + path + "annotations.csv")
 
 luna_subset_path = luna_path + 'data/'
 cubexhalf = 16
@@ -357,6 +357,7 @@ def nodeCheck(ball, nodesCenter, protectDistance=10.0):
 
 ###
 def cubeCut(coor, img_array, outfilename='test'):
+    # coor = ball.coor
     cubexhalf = 16
     cubeyhalf = 16
     cubezhalf = 16
@@ -372,6 +373,7 @@ def cubeCut(coor, img_array, outfilename='test'):
               bcx - cubexhalf:bcx + cubexhalf]
         cubes[i][0] = img
     np.save(luna_path + 'cubes/' + outfilename + '.npy', cubes)
+    # np.save(luna_path + 'dias/' + outfilename + '.npy', ball.dia)
 
 
 def resample(imgs, spacing, order=2):
@@ -393,12 +395,11 @@ def get_filename(file_list, case):
             return (f)
 
 
-df_node["file"] = df_node["seriesuid"].map(lambda file_name: get_filename(file_list, file_name))
-df_node = df_node.dropna()
-
 founds = 0
 shoulds = 0
 negatives = 0
+mode = 'test'
+# mode = 'train'
 for img_file in tqdm(file_list):
     # debug时候针对特定mhd数据处理，并且作图；
     # 注意因为有for循环，debug模式一定要在debug模式下开启
@@ -412,210 +413,227 @@ for img_file in tqdm(file_list):
         img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00120.mhd'
     print("")
     print("on mhd -- " + img_file)
-    mini_df = df_node[df_node["file"] == img_file]  # get all nodules associate with file
-    if mini_df.shape[0] > 0:  # some files may not have a nodule--skipping those
-        # load the data once
-        itk_img = sitk.ReadImage(img_file)
-        img_array = sitk.GetArrayFromImage(itk_img)  # indexes are z,y,x (notice the ordering)
-        # k = 144
-        # img_array = img_array[kk:kk + 200]
-        num_z, height, width = img_array.shape  # heightXwidth constitute the transverse plane
-        origin = np.array(itk_img.GetOrigin())  # x,y,z  Origin in world coordinates (mm)
-        spacing = np.array(itk_img.GetSpacing())  # spacing of voxels in world coor. (mm)
-        img_array = resample(img_array, spacing=spacing, order=1)
+    mhdname = re.split('\.|/', img_file)[-2]
+    # load the data once
+    itk_img = sitk.ReadImage(img_file)
+    img_array = sitk.GetArrayFromImage(itk_img)  # indexes are z,y,x (notice the ordering)
+    # k = 144
+    # img_array = img_array[kk:kk + 200]
+    num_z, height, width = img_array.shape  # heightXwidth constitute the transverse plane
+    origin = np.array(itk_img.GetOrigin())  # x,y,z  Origin in world coordinates (mm)
+    spacing = np.array(itk_img.GetSpacing())  # spacing of voxels in world coor. (mm)
+    img_array = resample(img_array, spacing=spacing, order=1)
+    nodesCenter = []
+    # for img in img_array:
+    #     plt.subplots()
+    #     plt.imshow(img)
 
-        # for img in img_array:
-        #     plt.subplots()
-        #     plt.imshow(img)
+
+    # 以下代码仅为初期探索，已移除
+    # img_array = gaussian(img_array)
+    # img_array = gaussian(img_array)
+    # segmented_lungs = img_array > -600
+    # plt.subplots()
+    # plt.subplot(121)
+    # plt.imshow(segmented_lungs[71])
+    # plt.subplot(122)
+    # plt.imshow(img_array[71])
+
+    # plt.subplots()
+    # plt.imshow(img * segmented_lungs[0])
+    # plt.colorbar()
+    # # plot_3d(segmented_lungs, 0)
+    # # plt.show()
+    #
+    # # fill是需要的，不过这个函数不好；故采用3d 腐蚀/膨胀
+    # segmented_lungs_dilation = binary_dilation(segmented_lungs, structure=np.ones((5, 5, 5))).astype(
+    #     segmented_lungs.dtype)
+    # plt.subplots()
+    # plt.imshow(segmented_lungs_dilation[0])
+    # segmented_lungs_dilation = binary_dilation(segmented_lungs_dilation, structure=np.ones((3, 3, 3))).astype(
+    #     segmented_lungs.dtype)
+    # plt.subplots()
+    # plt.imshow(segmented_lungs_dilation[0])
+    # segmented_lungs_dilation = binary_dilation(segmented_lungs_dilation).astype(segmented_lungs.dtype)
+    # plt.subplots()
+    # plt.imshow(segmented_lungs_dilation[0])
+    # # segmented_lungs_dilation = binary_dilation(segmented_lungs_dilation).astype(segmented_lungs.dtype)
+    # # plt.subplots()
+    # # plt.imshow(segmented_lungs_dilation[10])
+    #
+    #
+    # # 这里不需要了吗
+    # # segmented_lungs_erosion = binary_erosion(segmented_lungs).astype(segmented_lungs.dtype)
+    # segmented_lungs_erosion = segmented_lungs.copy()
+    # # plt.subplots()
+    # # plt.imshow(segmented_lungs_erosion[k])
+    #
+    # # segmented_lungs_erosion = binary_erosion(segmented_lungs_erosion).astype(segmented_lungs.dtype)
+    # # plt.subplots()
+    # # plt.imshow(segmented_lungs_erosion[k])
+    #
+    # # segmented_lungs_fill = segment_lung_mask(img_array, True)
+    # # plt.subplots()
+    # # plt.imshow(segmented_lungs_fill[10])
+    # # plt.colorbar()
+    # # plot_3d(segmented_lungs, 0)
+    #
+    #
+    #
+    # # 未完待续，把第二大类的label指定为背景（也就是肺壁以及相邻）
+    # # ？？？？
+    # # 话说这里labels也算是聚类后的结果，考虑直接处理。不用kmean/dbscan等
+    # # 上述想法失败；考虑搜索3d检测球体代码
+    # # content_labels = measure.label(content)
+    # # erosion_labels = measure.label(segmented_lungs_erosion)
+    #
+    # # 试图框出有用信息范围3d
+    # # regions = measure.regionprops(erosion_labels)
+    #
+    # # 通过左查保留有用信息（尽量只包含血管/结节）
+    # # 这里的content是3d数据
+    # segmented_lungs_content = segmented_lungs_dilation - segmented_lungs_erosion
+    #
+    # # for erosionMask, dilationMask, contentMask, img in zip(segmented_lungs_erosion, segmented_lungs_dilation,
+    # #                                                        segmented_lungs_content, img_array):
+    # for i, erosionMask in enumerate(segmented_lungs_erosion):
+    #     erosionLabels = measure.label(erosionMask)
+    #     regions = measure.regionprops(erosionLabels)
+    #     if len(regions) == 0:
+    #         continue
+    #     min_row = 512
+    #     max_row = 0
+    #     min_col = 512
+    #     max_col = 0
+    #     for prop in regions:
+    #         B = prop.bbox
+    #         if min_row > B[0]:
+    #             min_row = B[0]
+    #         if min_col > B[1]:
+    #             min_col = B[1]
+    #         if max_row < B[2]:
+    #             max_row = B[2]
+    #         if max_col < B[3]:
+    #             max_col = B[3]
+    #     dilationMask = segmented_lungs_dilation[i]
+    #     regionMask = np.zeros_like(dilationMask)
+    #     regionMask[min_row:max_row, min_col:max_col] = 1
+    #     # plt.subplots()
+    #     # plt.subplot(121)
+    #     # plt.imshow(erosionMask)
+    #     # plt.subplot(122)
+    #     # plt.imshow(regionMask)
+    #     #
+    #     # plt.subplots()
+    #     # plt.imshow(dilationMask)
+    #     # dilation 结果粗筛选
+    #     dilationMask *= regionMask
+    #     segmented_lungs_content[i] = dilationMask - erosionMask
+    #     # plt.subplots()
+    #     # plt.subplot(121)
+    #     # plt.imshow(img)
+    #     # plt.subplot(122)
+    #     # plt.imshow(img*dilationMask)
+    #     #
+    #     # plt.subplots()
+    #     # plt.subplot(121)
+    #     # plt.imshow(contentMask)
+    #     # plt.colorbar()
+    #     # plt.subplot(122)
+    #     # plt.imshow(contentMask*img)
+    # # 为了尽量让结节和背景分离，因为measure的props方式，不能有一点点的直连，而dbscan耗时太久。
+    # # 发现一个特点，先把孔扩张（对应mask的erosion），再在这一步缩小，相对于不这样做，前者更倾向于把孔变为球状。
+    # # 破坏了实际形状，使mask更倾向于球状（是好是坏呢？毕竟只是mask，目标是检测出来所有可疑结点）
+
+    # 将坐标提取归入extractNodeCenter函数
 
 
-        # 以下代码仅为初期探索，已移除
-        # img_array = gaussian(img_array)
-        # img_array = gaussian(img_array)
-        # segmented_lungs = img_array > -600
-        # plt.subplots()
-        # plt.subplot(121)
-        # plt.imshow(segmented_lungs[71])
-        # plt.subplot(122)
-        # plt.imshow(img_array[71])
 
-        # plt.subplots()
-        # plt.imshow(img * segmented_lungs[0])
-        # plt.colorbar()
-        # # plot_3d(segmented_lungs, 0)
-        # # plt.show()
-        #
-        # # fill是需要的，不过这个函数不好；故采用3d 腐蚀/膨胀
-        # segmented_lungs_dilation = binary_dilation(segmented_lungs, structure=np.ones((5, 5, 5))).astype(
-        #     segmented_lungs.dtype)
-        # plt.subplots()
-        # plt.imshow(segmented_lungs_dilation[0])
-        # segmented_lungs_dilation = binary_dilation(segmented_lungs_dilation, structure=np.ones((3, 3, 3))).astype(
-        #     segmented_lungs.dtype)
-        # plt.subplots()
-        # plt.imshow(segmented_lungs_dilation[0])
-        # segmented_lungs_dilation = binary_dilation(segmented_lungs_dilation).astype(segmented_lungs.dtype)
-        # plt.subplots()
-        # plt.imshow(segmented_lungs_dilation[0])
-        # # segmented_lungs_dilation = binary_dilation(segmented_lungs_dilation).astype(segmented_lungs.dtype)
-        # # plt.subplots()
-        # # plt.imshow(segmented_lungs_dilation[10])
-        #
-        #
-        # # 这里不需要了吗
-        # # segmented_lungs_erosion = binary_erosion(segmented_lungs).astype(segmented_lungs.dtype)
-        # segmented_lungs_erosion = segmented_lungs.copy()
-        # # plt.subplots()
-        # # plt.imshow(segmented_lungs_erosion[k])
-        #
-        # # segmented_lungs_erosion = binary_erosion(segmented_lungs_erosion).astype(segmented_lungs.dtype)
-        # # plt.subplots()
-        # # plt.imshow(segmented_lungs_erosion[k])
-        #
-        # # segmented_lungs_fill = segment_lung_mask(img_array, True)
-        # # plt.subplots()
-        # # plt.imshow(segmented_lungs_fill[10])
-        # # plt.colorbar()
-        # # plot_3d(segmented_lungs, 0)
-        #
-        #
-        #
-        # # 未完待续，把第二大类的label指定为背景（也就是肺壁以及相邻）
-        # # ？？？？
-        # # 话说这里labels也算是聚类后的结果，考虑直接处理。不用kmean/dbscan等
-        # # 上述想法失败；考虑搜索3d检测球体代码
-        # # content_labels = measure.label(content)
-        # # erosion_labels = measure.label(segmented_lungs_erosion)
-        #
-        # # 试图框出有用信息范围3d
-        # # regions = measure.regionprops(erosion_labels)
-        #
-        # # 通过左查保留有用信息（尽量只包含血管/结节）
-        # # 这里的content是3d数据
-        # segmented_lungs_content = segmented_lungs_dilation - segmented_lungs_erosion
-        #
-        # # for erosionMask, dilationMask, contentMask, img in zip(segmented_lungs_erosion, segmented_lungs_dilation,
-        # #                                                        segmented_lungs_content, img_array):
-        # for i, erosionMask in enumerate(segmented_lungs_erosion):
-        #     erosionLabels = measure.label(erosionMask)
-        #     regions = measure.regionprops(erosionLabels)
-        #     if len(regions) == 0:
-        #         continue
-        #     min_row = 512
-        #     max_row = 0
-        #     min_col = 512
-        #     max_col = 0
-        #     for prop in regions:
-        #         B = prop.bbox
-        #         if min_row > B[0]:
-        #             min_row = B[0]
-        #         if min_col > B[1]:
-        #             min_col = B[1]
-        #         if max_row < B[2]:
-        #             max_row = B[2]
-        #         if max_col < B[3]:
-        #             max_col = B[3]
-        #     dilationMask = segmented_lungs_dilation[i]
-        #     regionMask = np.zeros_like(dilationMask)
-        #     regionMask[min_row:max_row, min_col:max_col] = 1
-        #     # plt.subplots()
-        #     # plt.subplot(121)
-        #     # plt.imshow(erosionMask)
-        #     # plt.subplot(122)
-        #     # plt.imshow(regionMask)
-        #     #
-        #     # plt.subplots()
-        #     # plt.imshow(dilationMask)
-        #     # dilation 结果粗筛选
-        #     dilationMask *= regionMask
-        #     segmented_lungs_content[i] = dilationMask - erosionMask
-        #     # plt.subplots()
-        #     # plt.subplot(121)
-        #     # plt.imshow(img)
-        #     # plt.subplot(122)
-        #     # plt.imshow(img*dilationMask)
-        #     #
-        #     # plt.subplots()
-        #     # plt.subplot(121)
-        #     # plt.imshow(contentMask)
-        #     # plt.colorbar()
-        #     # plt.subplot(122)
-        #     # plt.imshow(contentMask*img)
-        # # 为了尽量让结节和背景分离，因为measure的props方式，不能有一点点的直连，而dbscan耗时太久。
-        # # 发现一个特点，先把孔扩张（对应mask的erosion），再在这一步缩小，相对于不这样做，前者更倾向于把孔变为球状。
-        # # 破坏了实际形状，使mask更倾向于球状（是好是坏呢？毕竟只是mask，目标是检测出来所有可疑结点）
+    # 参数设定
+    # 试图用不erosion的进行小结节提取,多次erosion的进行大结节提取
+    p0 = Param(erosionTimes=0, extent=0.2, areamin=6, areamax=4000, dmin=2.0)
+    p1 = Param(erosionTimes=1, extent=0.2, areamin=6, areamax=4000, dmin=2.0)
+    p2 = Param(erosionTimes=2, extent=0.2, areamin=4, areamax=4000, dmin=1.0)
+    p3 = Param(erosionTimes=3, extent=0.2, areamin=2, areamax=15000, dmin=1.0)
+    # p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
+    # # 参数设定
+    # # 试图用不erosion的进行小结节提取,多次erosion的进行大结节提取
+    # p0 = Param(erosionTimes=0, extent=0.3, areamin=10, areamax=4000, dmin=2.5)
+    # p1 = Param(erosionTimes=1, extent=0.3, areamin=6, areamax=4000, dmin=2.0)
+    # p2 = Param(erosionTimes=2, extent=0.2, areamin=4, areamax=4000, dmin=1.0)
+    # p3 = Param(erosionTimes=3, extent=0.2, areamin=2, areamax=15000, dmin=1.0)
+    # # p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
 
-        # 将坐标提取归入extractNodeCenter函数
+    # 二值化门限设置
+    th = -600
 
-        nodesCenter = extractNodeCenter(mini_df, origin=origin, ifprint=True)
+    # 这里的while循环为解决th门限对某些数据集太低，使得太多区域过了th
 
-        # 参数设定
-        # 试图用不erosion的进行小结节提取,多次erosion的进行大结节提取
-        p0 = Param(erosionTimes=0, extent=0.2, areamin=6, areamax=4000, dmin=2.0)
-        p1 = Param(erosionTimes=1, extent=0.2, areamin=6, areamax=4000, dmin=2.0)
-        p2 = Param(erosionTimes=2, extent=0.2, areamin=4, areamax=4000, dmin=1.0)
-        p3 = Param(erosionTimes=3, extent=0.2, areamin=2, areamax=15000, dmin=1.0)
-        # p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
-        # # 参数设定
-        # # 试图用不erosion的进行小结节提取,多次erosion的进行大结节提取
-        # p0 = Param(erosionTimes=0, extent=0.3, areamin=10, areamax=4000, dmin=2.5)
-        # p1 = Param(erosionTimes=1, extent=0.3, areamin=6, areamax=4000, dmin=2.0)
-        # p2 = Param(erosionTimes=2, extent=0.2, areamin=4, areamax=4000, dmin=1.0)
-        # p3 = Param(erosionTimes=3, extent=0.2, areamin=2, areamax=15000, dmin=1.0)
-        # # p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
-
-        # 二值化门限设置
-        th = -600
-
-        # 这里的while循环为解决th门限对某些数据集太低，使得太多区域过了th
-
-        # 主要耗时1
-        segmented_lungs = segment_lung_mask(img_array, threshold=th, fill_lung_structures=False)
-        # 主要耗时2
-        ball0 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p0,
-                             ifplot=debugMode)
-        if ball0.coor.shape[0] < 2:
-            print("-" * 40)
-            print(img_file + '获取proposal失败!!')
-            print("-" * 40)
-            continue
-        ball = Ball()
-        # 实际上ballProposal中nodesCenter参数仅供debug模式作图查看真正结节前后的几帧图像，正式版将移除
-        # 目前调用了3次ballProposal，实际上ball3作用很小，主要是为检出贴边较大结节，因为通过erosion或可将贴边的缺口闭合
-        ball1 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p1,
-                             ifplot=debugMode)
-        ball2 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p2,
-                             ifplot=debugMode)
-        ball3 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p3,
-                             ifplot=debugMode)
-        # ball5 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p5,
-        #                      ifplot=debugMode)
-        #
-        # ball0采用p0参数，通常候选太多，当超过1000候选，可以做erosion大量减少；忽视ball0
-        if ball0.coor.shape[0] > 1000:
-            # 候选太多则ball1也忽视
-            if ball1.coor.shape[0] > 1000:
-                ball = ball2
-            else:
-                ball = repCheck(ball1, ball2)
+    # 主要耗时1
+    segmented_lungs = segment_lung_mask(img_array, threshold=th, fill_lung_structures=False)
+    # 主要耗时2
+    ball0 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p0,
+                         ifplot=debugMode)
+    if ball0.coor.shape[0] < 2:
+        print("-" * 40)
+        print(img_file + '获取proposal失败!!')
+        print("-" * 40)
+        continue
+    ball = Ball()
+    # 实际上ballProposal中nodesCenter参数仅供debug模式作图查看真正结节前后的几帧图像，正式版将移除
+    # 目前调用了3次ballProposal，实际上ball3作用很小，主要是为检出贴边较大结节，因为通过erosion或可将贴边的缺口闭合
+    ball1 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p1,
+                         ifplot=debugMode)
+    ball2 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p2,
+                         ifplot=debugMode)
+    ball3 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p3,
+                         ifplot=debugMode)
+    # ball5 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p5,
+    #                      ifplot=debugMode)
+    #
+    # ball0采用p0参数，通常候选太多，当超过1000候选，可以做erosion大量减少；忽视ball0
+    if ball0.coor.shape[0] > 1000:
+        # 候选太多则ball1也忽视
+        if ball1.coor.shape[0] > 1000:
+            ball = ball2
         else:
-            ball = repCheck(ball0, ball1)
-            ball = repCheck(ball, ball2)
-        ball = repCheck(ball, ball3)
-        # ball = repCheck(ball, ball5)
-
+            ball = repCheck(ball1, ball2)
+    else:
+        ball = repCheck(ball0, ball1)
+        ball = repCheck(ball, ball2)
+    ball = repCheck(ball, ball3)
+    # ball = repCheck(ball, ball5)
+    # # 要将ball的coor and dia 存储起来
+    # 保存世界位置coor和dia,用于回溯输出!
+    np.save(luna_path + 'coor/coor{}.npy'.format(mhdname), ball.coor + origin)
+    np.save(luna_path + 'dia/dia{}.npy'.format(mhdname), ball.dia)
+    if path == 'val/' or 'test/':
+        # 根据图片像素coor来cut
+        cubeCut(coor=ball.coor, img_array=img_array, outfilename='neg/neg' + mhdname)
+    else:
+        # 下面是针对train和val的真假例区分
+        df_node = pd.read_csv(luna_path + "csv/" + path + "annotations.csv")
+        df_node["file"] = df_node["seriesuid"].map(lambda file_name: get_filename(file_list, file_name))
+        df_node = df_node.dropna()
+        mini_df = df_node[df_node["file"] == img_file]  # get all nodules associate with file
+        if mini_df.shape[0] == 0:  # some files may not have a nodule--skipping those
+            continue
+        nodesCenter = extractNodeCenter(mini_df, origin=origin, ifprint=True)
         # protectDistance 意义在于node 32像素范围内的ball都视为找到node
         # 这里于d无关，因为考虑到裁剪是按照固定大小32像素裁剪（前提是做spacing统一尺寸）
         nodeFound, nodeShould, nodeNegative = nodeCheck(ball=ball, nodesCenter=nodesCenter, protectDistance=32.0)
-
         # !负样本选取：
         # 上面对于每个mhd文件提取了ball坐标，下面进行cut
         # 认为nodeFound=0以及nodeNegative太大的，是因为数据不好
         # 应该对这些不好数据重新处理，这里为简便直接跳过；待后续修改。
-        mhdname = re.split('\.|/', img_file)[-2]
         # if nodeFound > 0 and nodeNegative < 800:
         if nodeNegative < 800:
+            # cubeCut函数里面有写文件操作
             cubeCut(coor=ball.coor, img_array=img_array, outfilename='neg/neg' + mhdname)
+        else:
+            print("-" * 40)
+            print(img_file + 'proposal太大!!')
+            print("-" * 40)
         # # 累加统计
         founds += nodeFound
         shoulds += nodeShould

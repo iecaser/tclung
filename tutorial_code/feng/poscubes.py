@@ -41,9 +41,10 @@ from scipy.ndimage.interpolation import zoom
 
 ############
 # 全局
-
+# path = 'train/'
+path = 'val/'
 # luna_path = r"/media/soffo/本地磁盘/tc/val/"
-luna_path = r"/media/soffo/本地磁盘/tc/train/"
+luna_path = r"/media/soffo/本地磁盘/tc/" + path
 
 luna_subset_path = luna_path + 'data/'
 output_path = luna_path + 'tutorial/'
@@ -156,7 +157,7 @@ def nodeCubeCut(coor, img_array, expandCoef=8, vibration=5):
                 x1 = x2 - cubexhalf * 2
 
             img = img_array[z1:z2, y1:y2, x1:x2]
-            if np.sum(img.shape)<32*3:
+            if np.sum(img.shape) < 32 * 3:
                 print(i)
                 print(j)
                 print(bcx)
@@ -189,7 +190,7 @@ def resample(imgs, spacing, order=2):
 
 
 def poscubeCut():
-    df_node = pd.read_csv(luna_path + "csv/train/annotations.csv")
+    df_node = pd.read_csv(luna_path + "csv/" + path + "annotations.csv")
     # df_node = pd.read_csv(luna_path + "csv/val/annotations.csv")
     df_node["file"] = df_node["seriesuid"].map(lambda file_name: get_filename(file_list, file_name))
     df_node = df_node.dropna()
@@ -218,10 +219,12 @@ def poscubeCut():
             spacing = np.array(itk_img.GetSpacing())  # spacing of voxels in world coor. (mm)
             img_array = resample(img_array, spacing=spacing, order=1)
             nodesCenter = extractNodeCenter(mini_df, origin=origin)
+            mhdname = re.split('\.|/', img_file)[-2]
+            # np.save(luna_path + 'realcoor/realcoor{}.npy'.format(mhdname), nodesCenter)
             # !正样本选取：
             newcube = nodeCubeCut(coor=nodesCenter, img_array=img_array, expandCoef=8, vibration=5)
             cubes = np.r_[cubes, newcube]
-    np.save(luna_path + 'cubes/' + 'posAll.npy', cubes)
+    np.save(luna_path + 'cubes/posAll.npy', cubes)
     return cubes
 
 
