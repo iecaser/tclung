@@ -108,19 +108,28 @@ def get3dcnn():
 #     return xTrain, yTrain, xTest, yTest
 
 
-def cnntrain(xtrain, ytrain, xval, yval, use_existing=False):
+def cnntrain(use_existing=False):
 
-    xtrain = np.load('/media/soffo/本地磁盘/tc/train/cubes/datagen/xtrain.npy')
-    ytrain = np.load('/media/soffo/本地磁盘/tc/train/cubes/datagen/ytrain.npy')
+    # xtrain = np.load('/media/soffo/本地磁盘/tc/train/cubes/datagen/xtrain.npy')
+    # ytrain = np.load('/media/soffo/本地磁盘/tc/train/cubes/datagen/ytrain.npy')
+    # 一定要做归一化!!
+    #     xTrainmean = np.mean(xTrain)
+    #     xTrainstd = np.std(xTrain)
+    #     xTrain -= xTrainmean
+    #     xTrain /= xTrainstd
+    #     xTest -= xTrainmean
+    #     xTest /= xTrainstd
     xval = np.load('/media/soffo/本地磁盘/tc/val/cubes/datagen/xval.npy')
     yval = np.load('/media/soffo/本地磁盘/tc/val/cubes/datagen/yval.npy')
+    # val也要用train的归一化
     model_checkpoint = ModelCheckpoint('/media/soffo/本地磁盘/tc/train/log/net3d.hdf5', monitor='val_loss',
                                        save_best_only=True)
     earlystop = EarlyStopping(monitor='val_loss', min_delta=0, patience=5, verbose=1, mode='auto')
     model = get3dcnn()
     if use_existing:
         model.load_weights('/media/soffo/本地磁盘/tc/train/log/net3d.hdf5')
-    model.fit(xtrain, ytrain, batch_size=3, epochs=50, verbose=1, shuffle=True,
+    # model.fit(xtrain, ytrain, batch_size=3, epochs=50, verbose=1, shuffle=True,
+    model.fit(xval, yval, batch_size=3, epochs=50, verbose=1, shuffle=True,
               callbacks=[model_checkpoint, earlystop], validation_data=[xval, yval])
     return model
 
@@ -170,6 +179,6 @@ def cnnpredict(working_path=test_path):
 # load data
 # xTrain, yTrain, xTest, yTest = loaddata()
 # train
-# model = cnntrain(xTrain, yTrain, xTest, yTest, use_existing=False)
+model = cnntrain(use_existing=False)
 # predict
 cnnpredict(working_path=val_path)
