@@ -44,8 +44,37 @@ cubexhalf = 16
 cubeyhalf = 16
 cubezhalf = 16
 
+def get3dcnn01():
+    model = Sequential()
 
-def get3dcnn():
+    model.add(Conv3D(64, (3, 3, 3), activation='relu', input_shape=(1, cubezhalf * 2, cubexhalf * 2, cubeyhalf * 2),
+                     padding='same'))
+    model.add(Conv3D(64, (3, 3, 3), activation='relu', padding='same'))
+    model.add(MaxPool3D(pool_size=(2, 2, 2)))
+    # model.add(Dropout(0.25))
+    model.add(Conv3D(128, (3, 3, 3), activation='relu', padding='same'))
+    model.add(Conv3D(128, (3, 3, 3), activation='relu', padding='same'))
+    model.add(Conv3D(128, (3, 3, 3), activation='relu', padding='same'))
+    model.add(MaxPool3D(pool_size=(2, 2, 2)))
+
+    model.add(Conv3D(256, (3, 3, 3), activation='relu', padding='valid'))
+    model.add(Conv3D(256, (3, 3, 3), activation='relu', padding='valid'))
+    model.add(Conv3D(256, (3, 3, 3), activation='relu', padding='valid'))
+    model.add(MaxPool3D(pool_size=(2, 2, 2)))
+
+    model.add(Flatten())
+    model.add(Dense(512, activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(512, activation='relu'))
+    model.add(Dropout(0.5))
+    # model.add(Dense(256, activation='relu'))
+    # model.add(Dropout(0.5))
+    model.add(Dense(1, activation='sigmoid'))
+
+    # model.compile(loss='categorical_crossentropy', optimizer=Adam(lr=1.0e-4), metrics=['accuracy'])
+    model.compile(loss='binary_crossentropy', optimizer=Adam(lr=1.0e-5), metrics=['binary_accuracy'])
+    return model
+def get3dcnn014():
     model = Sequential()
     model.add(Conv3D(32, (3, 3, 3), activation='relu', input_shape=(1, cubezhalf * 2, cubexhalf * 2, cubeyhalf * 2),
                      padding='same'))
@@ -67,7 +96,7 @@ def get3dcnn():
     return model
 
 
-def get3dcnn1():
+def get3dcnnmy():
     model = Sequential()
     model.add(Conv3D(64, (3, 3, 3), activation='relu', input_shape=(1, cubezhalf * 2, cubexhalf * 2, cubeyhalf * 2),
                      padding='same'))
@@ -154,7 +183,7 @@ def cnntrain(use_existing=False):
     model_checkpoint = ModelCheckpoint('./net3d.hdf5', monitor='val_loss',
                                        save_best_only=True)
     print('getting model...')
-    model = get3dcnn()
+    model = get3dcnn014()
     if use_existing:
         print('loading model weights...')
         model.load_weights('./net3d.hdf5')
@@ -171,13 +200,14 @@ def cnnpredict(working_path=''):
     cubexhalf = 16
     cubeyhalf = 16
     cubezhalf = 16
-    file_list = glob(working_path + 'cubes/neg/*.npy')
+    # file_list = glob(working_path + 'cubes/neg/*.npy')
+    file_list = glob(working_path + 'cubes/negbackup/*.npy')
     # file_list = glob(val_path +'posbackup/'+ "*.npy")
     trainmean, trainstd = np.load(working_path + 'meanstd.npy')
     # model = get3dcnn1()
     # model.load_weights('/home/soffo/Documents/codes/DSB3Tutorial/tutorial_code/feng/net3d.hdf5')
-    model = get3dcnn()
-    model.load_weights('/media/soffo/本地磁盘/tc/train/log/net3d.hdf5')
+    model = get3dcnn01()
+    model.load_weights('/media/soffo/本地磁盘/tc/train/log/net3d01.hdf5')
 
     seriesuids = []
     coors = np.array([]).reshape(0, 3)
@@ -194,7 +224,7 @@ def cnnpredict(working_path=''):
         # 按照cubes顺序得到的probability
         # coornpy和dianpy文件也是按照这个顺序
         probability = model.predict(cubes)
-        probability = probability.flatten()
+        probability = probability.flatten()-0.1
         # 默认argsort是升序,取负保证index对于+probability而言是降序
         index = np.argsort(-probability)
         probability = probability[index]
@@ -204,10 +234,10 @@ def cnnpredict(working_path=''):
         dia = dia[index]
         # 依据简单规则进行粗筛选,后续和unet在csv-level结合
         # 后续或可根据rio训练二级分类器,边界信息一定要用
-        probability = probability[:20]
-        coor = coor[:20]
-        dia = dia[:20]
-        aFilter = probability > 0.5
+        probability = probability[:8]
+        coor = coor[:8]
+        dia = dia[:8]
+        aFilter = probability > 0.7
         cnt = np.sum(aFilter)
         if cnt == 0:
             man.append(seriesuid)
@@ -237,9 +267,10 @@ def cnnpredict(working_path=''):
     submit['probability'] = probabilitys
     # submit['dia'] = dias
     man = np.array(man)
+    print('需要手动查找个数:{}'.format(len(man)))
     print(man)
-    np.save('/media/soffo/本地磁盘/tc/test/log/man.npy', man)
-    submit.to_csv('/media/soffo/本地磁盘/tc/test/log/submit.csv', index=False)
+    np.save(working_path+'log/man.npy', man)
+    submit.to_csv(working_path+'log/submit.csv', index=False)
 
 
 # load data
@@ -249,5 +280,4 @@ def cnnpredict(working_path=''):
 # model = cnntrain(use_existing=True)
 # predict
 cnnpredict(working_path=test_path)
-manid = ['LKDS-01004',]
-mannode = []
+# cnnpredict(working_path=val_path)

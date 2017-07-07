@@ -43,9 +43,9 @@ from scipy.ndimage.interpolation import zoom
 
 ############
 # 全局
-# path = 'val/'
+path = 'val/'
 # path = 'train/'
-path = 'test/'
+# path = 'test/'
 
 luna_path = r"/media/soffo/本地磁盘/tc/" + path
 
