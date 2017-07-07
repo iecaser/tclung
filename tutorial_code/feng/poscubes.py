@@ -41,8 +41,8 @@ from scipy.ndimage.interpolation import zoom
 
 ############
 # 全局
-# path = 'train/'
-path = 'val/'
+path = 'train/'
+# path = 'val/'
 # luna_path = r"/media/soffo/本地磁盘/tc/val/"
 luna_path = r"/media/soffo/本地磁盘/tc/" + path
 
@@ -222,7 +222,7 @@ def poscubeCut():
             mhdname = re.split('\.|/', img_file)[-2]
             # np.save(luna_path + 'realcoor/realcoor{}.npy'.format(mhdname), nodesCenter)
             # !正样本选取：
-            newcube = nodeCubeCut(coor=nodesCenter, img_array=img_array, expandCoef=8, vibration=5)
+            newcube = nodeCubeCut(coor=nodesCenter, img_array=img_array, expandCoef=16, vibration=5)
             cubes = np.r_[cubes, newcube]
     np.save(luna_path + 'cubes/posAll.npy', cubes)
     return cubes

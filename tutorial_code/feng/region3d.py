@@ -43,9 +43,9 @@ from scipy.ndimage.interpolation import zoom
 
 ############
 # 全局
-path = 'val/'
+# path = 'val/'
 # path = 'train/'
-# path = 'test/'
+path = 'test/'
 
 luna_path = r"/media/soffo/本地磁盘/tc/" + path
 
@@ -183,14 +183,14 @@ def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
     # nthNode = 10
 
 
-    if ifplot:
-        for j in range(20):
-            plt.subplots()
-            plt.subplot(121)
-            plt.imshow(segmented_lungs_content[int(nodesCenter[nthNode][2]) + 10 - j])
-            plt.subplot(122)
-            plt.imshow(img_array[int(nodesCenter[nthNode][2]) + 10 - j])
-            # plt.show()
+    # if ifplot:
+    #     for j in range(20):
+    #         plt.subplots()
+    #         plt.subplot(121)
+    #         plt.imshow(segmented_lungs_content[int(nodesCenter[nthNode][2]) + 10 - j])
+    #         plt.subplot(122)
+    #         plt.imshow(img_array[int(nodesCenter[nthNode][2]) + 10 - j])
+    #         # plt.show()
 
     # contentLabels = measure.label(segmented_lungs_content, connectivity=1)
     # contentLabels = measure.label(segmented_lungs_content, connectivity=2)
@@ -233,9 +233,9 @@ def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
     dia = []
     # 对照真结节，统计查出数目
     ballCount = 0
-    if ifplot:
-        print("{} - label:{}".format(nodesCenter[nthNode], contentLabels[int(np.rint(nodesCenter[nthNode][2]))][
-            int(np.rint(nodesCenter[nthNode][1]))][int(np.rint(nodesCenter[nthNode][0]))]))
+    # if ifplot:
+    #     print("{} - label:{}".format(nodesCenter[nthNode], contentLabels[int(np.rint(nodesCenter[nthNode][2]))][
+    #         int(np.rint(nodesCenter[nthNode][1]))][int(np.rint(nodesCenter[nthNode][0]))]))
     for region in region3d:
         # 全部打印用于对照查找问题
         if ifplot:
@@ -265,10 +265,11 @@ def ballProposal(segmented_lungs_content, nodesCenter, param, ifplot=False):
                             xyz = np.array([region.centroid[2], region.centroid[1], region.centroid[0]])
                             cxyz.append(xyz)
                             dia.append(region.equivalent_diameter)
-
-    dia = np.array(dia)
-    cxyz = np.array(cxyz)
-    balls = Ball(coor=cxyz, dia=dia)
+    dia = np.array(dia).reshape(len(dia), )
+    cxyz = np.array(cxyz).reshape(len(cxyz), 3)
+    imgshape = np.array(segmented_lungs_content.shape)
+    rio = cxyz / imgshape[::-1]
+    balls = Ball(coor=cxyz, dia=dia, rio=rio)
 
     # if ifplot:
     #     print("------------------ balls -------------------")
@@ -293,9 +294,10 @@ class Param:
 # 坐标和等效直径（分割有用的就这俩）
 # 关于命名，真结节叫node，通过亮斑找出来的这一堆只能叫“球”
 class Ball:
-    def __init__(self, coor=np.array([]), dia=np.array([])):
+    def __init__(self, coor=np.array([]), dia=np.array([]), rio=np.array([])):
         self.coor = coor
         self.dia = dia
+        self.rio = rio
 
 
 # repetition check
@@ -310,7 +312,9 @@ def repCheck(ballOld, ballNew, protectDistance=10.0):
             ballNewLight[i] += isrep
         ballNew.coor = ballNew.coor[~ballNewLight]
         ballNew.dia = ballNew.dia[~ballNewLight]
-        balls = Ball(coor=np.r_[ballOld.coor, ballNew.coor], dia=np.r_[ballOld.dia, ballNew.dia])
+        ballNew.rio = ballNew.rio[~ballNewLight]
+        balls = Ball(coor=np.r_[ballOld.coor, ballNew.coor], dia=np.r_[ballOld.dia, ballNew.dia],
+                     rio=np.r_[ballOld.rio, ballNew.rio])
         return balls
     else:
         return ballOld
@@ -410,7 +414,7 @@ for img_file in tqdm(file_list):
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00192.mhd'
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00168.mhd'
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00847.mhd'
-        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00120.mhd'
+        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00192.mhd'
     print("")
     print("on mhd -- " + img_file)
     mhdname = re.split('\.|/', img_file)[-2]
@@ -551,18 +555,20 @@ for img_file in tqdm(file_list):
 
     # 参数设定
     # 试图用不erosion的进行小结节提取,多次erosion的进行大结节提取
-    p0 = Param(erosionTimes=0, extent=0.2, areamin=6, areamax=4000, dmin=2.0)
-    p1 = Param(erosionTimes=1, extent=0.2, areamin=6, areamax=4000, dmin=2.0)
-    p2 = Param(erosionTimes=2, extent=0.2, areamin=4, areamax=4000, dmin=1.0)
-    p3 = Param(erosionTimes=3, extent=0.2, areamin=2, areamax=15000, dmin=1.0)
+    if path == 'train/' or path == 'val/':
+        p0 = Param(erosionTimes=0, extent=0.2, areamin=6, areamax=4000, dmin=2.0)
+        p1 = Param(erosionTimes=1, extent=0.2, areamin=6, areamax=4000, dmin=2.0)
+        p2 = Param(erosionTimes=2, extent=0.2, areamin=4, areamax=4000, dmin=1.0)
+        p3 = Param(erosionTimes=3, extent=0.2, areamin=2, areamax=15000, dmin=1.0)
     # p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
     # # 参数设定
-    # # 试图用不erosion的进行小结节提取,多次erosion的进行大结节提取
-    # p0 = Param(erosionTimes=0, extent=0.3, areamin=10, areamax=4000, dmin=2.5)
-    # p1 = Param(erosionTimes=1, extent=0.3, areamin=6, areamax=4000, dmin=2.0)
-    # p2 = Param(erosionTimes=2, extent=0.2, areamin=4, areamax=4000, dmin=1.0)
-    # p3 = Param(erosionTimes=3, extent=0.2, areamin=2, areamax=15000, dmin=1.0)
-    # # p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
+    if path == 'test/':
+        # 试图用不erosion的进行小结节提取,多次erosion的进行大结节提取
+        p0 = Param(erosionTimes=0, extent=0.1, areamin=5, areamax=14000, dmin=1.3)
+        p1 = Param(erosionTimes=1, extent=0.1, areamin=4, areamax=14000, dmin=1.3)
+        p2 = Param(erosionTimes=2, extent=0.1, areamin=2, areamax=14000, dmin=1.3)
+        p3 = Param(erosionTimes=3, extent=0.1, areamin=1, areamax=15000, dmin=1.3)
+        # p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
 
     # 二值化门限设置
     th = -600
@@ -607,7 +613,8 @@ for img_file in tqdm(file_list):
     # 保存世界位置coor和dia,用于回溯输出!
     np.save(luna_path + 'coor/coor{}.npy'.format(mhdname), ball.coor + origin)
     np.save(luna_path + 'dia/dia{}.npy'.format(mhdname), ball.dia)
-    if path == 'val/' or 'test/':
+    np.save(luna_path + 'rio/rio{}.npy'.format(mhdname), ball.rio)
+    if path == 'val/' or path == 'test/':
         # 根据图片像素coor来cut
         cubeCut(coor=ball.coor, img_array=img_array, outfilename='neg/neg' + mhdname)
     else:
