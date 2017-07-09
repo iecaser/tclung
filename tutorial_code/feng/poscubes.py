@@ -41,23 +41,24 @@ from scipy.ndimage.interpolation import zoom
 
 ############
 # 全局
-path = 'train/'
-# path = 'val/'
+# path = 'train/'
+path = 'val/'
 # luna_path = r"/media/soffo/本地磁盘/tc/val/"
 luna_path = r"/media/soffo/本地磁盘/tc/" + path
 
 luna_subset_path = luna_path + 'data/'
 output_path = luna_path + 'tutorial/'
 file_list = glob(luna_subset_path + "*.mhd")
-cubexhalf = 16
-cubeyhalf = 16
-cubezhalf = 16
-
+cubesize = np.load('/home/soffo/Documents/codes/DSB3Tutorial/tutorial_code/feng/cube.npy')
+cubexhalf = cubesize[0]
+cubeyhalf = cubesize[1]
+cubezhalf = cubesize[2]
 
 ###
 def extractNodeCenter(mini_df, origin, ifprint=False):
     # 每个node标记出位置，marker选用其他
     nodesCenter = []
+    diams = []
     for node_idx, cur_row in mini_df.iterrows():
         node_x = cur_row["coordX"]
         node_y = cur_row["coordY"]
@@ -101,14 +102,15 @@ def extractNodeCenter(mini_df, origin, ifprint=False):
         # # plt.show()
         # # ax.scatter3D(x, y, z, color='r', marker='.')
         nodesCenter.append(center)
+        diams.append(diam)
     if ifprint:
         for i, center in enumerate(nodesCenter):
             print("should:{}\t{}".format(i, center))
 
-    return np.array(nodesCenter)
+    return np.array(nodesCenter), np.array(diams)
 
 
-def nodeCubeCut(coor, img_array, expandCoef=8, vibration=5):
+def nodeCubeCut(coor, dia, img_array, expandCoef=8, vibration=5):
     # -----------------------------------
     # 1.注意到共有(2*vibration+1)**3中排列方式
     #   expandCoef应尽量大于上述数值
@@ -117,9 +119,12 @@ def nodeCubeCut(coor, img_array, expandCoef=8, vibration=5):
     # -----------------------------------
 
     i = 0
-    cubelen = int(expandCoef * coor.shape[0])
+    throwsize = 10
+    cubelen = int(expandCoef * np.sum(dia <= throwsize))
     cubes = np.zeros((cubelen, 1, 2 * cubezhalf, 2 * cubexhalf, 2 * cubeyhalf))
-    for c in coor:
+    for c, d in zip(coor, dia):
+        if d > throwsize:
+            continue
         bcx = int(np.rint(c[0]))
         bcy = int(np.rint(c[1]))
         bcz = int(np.rint(c[2]))
@@ -157,16 +162,9 @@ def nodeCubeCut(coor, img_array, expandCoef=8, vibration=5):
                 x1 = x2 - cubexhalf * 2
 
             img = img_array[z1:z2, y1:y2, x1:x2]
-            if np.sum(img.shape) < 32 * 3:
-                print(i)
-                print(j)
-                print(bcx)
-                print(bcy)
-                print(bcz)
-                print(bcv)
-            else:
-                cubes[i][0] = img
+            cubes[i][0] = img
             i += 1
+    # 每个mhd返回一个cubes
     return cubes
 
 
@@ -218,11 +216,11 @@ def poscubeCut():
             origin = np.array(itk_img.GetOrigin())  # x,y,z  Origin in world coordinates (mm)
             spacing = np.array(itk_img.GetSpacing())  # spacing of voxels in world coor. (mm)
             img_array = resample(img_array, spacing=spacing, order=1)
-            nodesCenter = extractNodeCenter(mini_df, origin=origin)
+            nodesCenter, diams = extractNodeCenter(mini_df, origin=origin)
             mhdname = re.split('\.|/', img_file)[-2]
             # np.save(luna_path + 'realcoor/realcoor{}.npy'.format(mhdname), nodesCenter)
             # !正样本选取：
-            newcube = nodeCubeCut(coor=nodesCenter, img_array=img_array, expandCoef=16, vibration=5)
+            newcube = nodeCubeCut(coor=nodesCenter, dia=diams, img_array=img_array, expandCoef=5, vibration=5)
             cubes = np.r_[cubes, newcube]
     np.save(luna_path + 'cubes/posAll.npy', cubes)
     return cubes

@@ -27,9 +27,10 @@ from glob import glob
 # real data
 train_path = "/media/soffo/本地磁盘/tc/train/cubes/"
 val_path = "/media/soffo/本地磁盘/tc/val/cubes/"
-cubexhalf = 16
-cubeyhalf = 16
-cubezhalf = 16
+cubesize = np.load('/home/soffo/Documents/codes/DSB3Tutorial/tutorial_code/feng/cube.npy')
+cubexhalf = cubesize[0]
+cubeyhalf = cubesize[1]
+cubezhalf = cubesize[2]
 
 
 def tainDataGen(working_path=''):
@@ -45,12 +46,12 @@ def tainDataGen(working_path=''):
         xnegnew = np.load(file)
         xneg = np.r_[xneg, xnegnew]
     yneg = np.zeros(xneg.shape[0]).astype(dtype=float)
-
+    print(xneg.shape)
     xpos = np.r_[np.load(working_path + 'posbackup/' + 'posAll.npy'), np.load(
         working_path + 'posbackup/' + 'posxcubes.npy'), np.load(working_path + 'posbackup/' + 'posycubes.npy'), np.load(
         working_path + 'posbackup/' + 'posxycubes.npy')]
     ypos = np.ones(xpos.shape[0]).astype(dtype=float)
-
+    print(xpos.shape)
     # double check cube数据是否是结点样式
     # for x in xpos:
     #     for xx in x[0]:
@@ -63,8 +64,8 @@ def tainDataGen(working_path=''):
 
     xneg = np.r_[xneg, xpos]
     yneg = np.r_[yneg, ypos]
-    # print('shuffling data ...')
-    # xneg, yneg = shuffle(xneg, yneg)
+    print('shuffling data ...')
+    xneg, yneg = shuffle(xneg, yneg)
     print('Saving data ...')
     np.save(working_path + 'datagen/xtrain.npy', xneg)
     np.save(working_path + 'datagen/ytrain.npy', yneg)
@@ -73,6 +74,6 @@ def tainDataGen(working_path=''):
 # def test
 
 
-# tainDataGen(working_path=val_path)
-tainDataGen(working_path=train_path)
+tainDataGen(working_path=val_path)
+# tainDataGen(working_path=train_path)
 

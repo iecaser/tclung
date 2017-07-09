@@ -22,11 +22,14 @@ import pandas as pd
 import numpy as np
 import SimpleITK as sitk
 
+# real
 mode = 1
-# mode = 2
+# pixl
+mode = 2
 
 # filename = 'Untitled 1.csv'
-filename = 'man.csv'
+filename = 'superman.csv'
+filename = 'batman.csv'
 man = pd.read_csv('/home/soffo/Desktop/' + filename)
 ids = man['seriesuid']
 print('ids count:', len(set(ids)))
@@ -38,8 +41,11 @@ for i, id_ in enumerate(ids):
     spacing = np.array(itk_img.GetSpacing())  # spacing of voxels in world coor. (mm)
     if mode == 1:
         xyzs[i] = xyzs[i] * spacing + origin
+        print(xyzs[i])
     if mode == 2:
         xyzs[i] = (xyzs[i] - origin) / spacing
+        print(xyzs[i])
 man[['coordX', 'coordY', 'coordZ']] = xyzs
+print(man)
 man.to_csv('/home/soffo/Desktop/mode{}'.format(mode) + filename, index=False)
 pass

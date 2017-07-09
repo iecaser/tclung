@@ -45,15 +45,18 @@ from scipy.ndimage.interpolation import zoom
 # 全局
 path = 'val/'
 # path = 'train/'
-# path = 'test/'
+path = 'test/'
 
 luna_path = r"/media/soffo/本地磁盘/tc/" + path
 
 luna_subset_path = luna_path + 'data/'
+cubesize = np.load('/home/soffo/Documents/codes/DSB3Tutorial/tutorial_code/feng/cube.npy')
+cubexhalf = cubesize[0]
+cubeyhalf = cubesize[1]
+cubezhalf = cubesize[2]
 cubexhalf = 16
 cubeyhalf = 16
 cubezhalf = 16
-
 file_list = glob(luna_subset_path + "*.mhd")
 
 
@@ -99,22 +102,12 @@ def segment_lung_mask(image, threshold=-600, fill_lung_structures=True):
     binary_image = 1 - binary_image  # Invert it, lungs are now 1
     # 觉得后面没啥用，提前返回
     return 1 - binary_image
-    plt.subplots()
-    plt.imshow(binary_image[0])
-    plt.show()
-    # Remove other air pockets insided body
-    labels = measure.label(binary_image, background=0)
-    # 这段存在问题，会导致只剩一边肺部
-    l_max = largest_label_volume(labels, bg=0)
-    if l_max is not None:  # There are air pockets
-        binary_image[labels != l_max] = 0
-
-    return binary_image
 
 
 def extractNodeCenter(mini_df, origin, ifprint=False):
     # 每个node标记出位置，marker选用其他
     nodesCenter = []
+    diams = []
     for node_idx, cur_row in mini_df.iterrows():
         node_x = cur_row["coordX"]
         node_y = cur_row["coordY"]
@@ -158,11 +151,12 @@ def extractNodeCenter(mini_df, origin, ifprint=False):
         # # plt.show()
         # # ax.scatter3D(x, y, z, color='r', marker='.')
         nodesCenter.append(center)
+        diams.append(diam)
     if ifprint:
         for i, center in enumerate(nodesCenter):
             print("should:{}\t{}".format(i, center))
 
-    return np.array(nodesCenter)
+    return np.array(nodesCenter), np.array(diams)
 
 
 # ------------------------------------------------------
@@ -362,6 +356,10 @@ def nodeCheck(ball, nodesCenter, protectDistance=10.0):
 ###
 def cubeCut(coor, img_array, outfilename='test'):
     # coor = ball.coor
+    cubesize = np.load('/home/soffo/Documents/codes/DSB3Tutorial/tutorial_code/feng/cube.npy')
+    cubexhalf = cubesize[0]
+    cubeyhalf = cubesize[1]
+    cubezhalf = cubesize[2]
     cubexhalf = 16
     cubeyhalf = 16
     cubezhalf = 16
@@ -404,6 +402,11 @@ shoulds = 0
 negatives = 0
 mode = 'test'
 # mode = 'train'
+oldfile = glob(luna_path + 'cubes/neg/*.npy')
+ofnames = []
+for ofile in oldfile:
+    ofname = re.split('\.|/', ofile)[-2][3:]
+    ofnames.append(ofname)
 for img_file in tqdm(file_list):
     # debug时候针对特定mhd数据处理，并且作图；
     # 注意因为有for循环，debug模式一定要在debug模式下开启
@@ -414,10 +417,12 @@ for img_file in tqdm(file_list):
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00192.mhd'
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00168.mhd'
         # img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00847.mhd'
-        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00192.mhd'
+        img_file = '/media/soffo/本地磁盘/tc/train/data/LKDS-00804.mhd'
     print("")
     print("on mhd -- " + img_file)
     mhdname = re.split('\.|/', img_file)[-2]
+    if mhdname in ofnames:
+        continue
     # load the data once
     itk_img = sitk.ReadImage(img_file)
     img_array = sitk.GetArrayFromImage(itk_img)  # indexes are z,y,x (notice the ordering)
@@ -555,20 +560,34 @@ for img_file in tqdm(file_list):
 
     # 参数设定
     # 试图用不erosion的进行小结节提取,多次erosion的进行大结节提取
-    if path == 'train/' or path == 'val/':
-        p0 = Param(erosionTimes=0, extent=0.2, areamin=6, areamax=4000, dmin=2.0)
-        p1 = Param(erosionTimes=1, extent=0.2, areamin=6, areamax=4000, dmin=2.0)
-        p2 = Param(erosionTimes=2, extent=0.2, areamin=4, areamax=4000, dmin=1.0)
-        p3 = Param(erosionTimes=3, extent=0.2, areamin=2, areamax=15000, dmin=1.0)
+    if path == 'train/':
+        p0 = Param(erosionTimes=0, extent=0.2, areamin=8, areamax=1000, dmin=2.0)
+        p1 = Param(erosionTimes=1, extent=0.3, areamin=5, areamax=1000, dmin=1.3)
+        p2 = Param(erosionTimes=2, extent=0.4, areamin=4, areamax=1000, dmin=1.3)
+        # p3 = Param(erosionTimes=3, extent=0.2, areamin=2, areamax=4000, dmin=1.3)
     # p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
     # # 参数设定
-    if path == 'test/':
+    if path == 'test/' or path == 'val/':
         # 试图用不erosion的进行小结节提取,多次erosion的进行大结节提取
         p0 = Param(erosionTimes=0, extent=0.1, areamin=5, areamax=14000, dmin=1.3)
         p1 = Param(erosionTimes=1, extent=0.1, areamin=4, areamax=14000, dmin=1.3)
         p2 = Param(erosionTimes=2, extent=0.1, areamin=2, areamax=14000, dmin=1.3)
         p3 = Param(erosionTimes=3, extent=0.1, areamin=1, areamax=15000, dmin=1.3)
-        # p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
+    # # p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
+    #     if path == 'train/' or path == 'val/':
+    #     p0 = Param(erosionTimes=0, extent=0.3, areamin=10, areamax=3000, dmin=2.0)
+    #     p1 = Param(erosionTimes=1, extent=0.3, areamin=5, areamax=3000, dmin=1.3)
+    #     p2 = Param(erosionTimes=2, extent=0.4, areamin=4, areamax=3000, dmin=1.3)
+    #     # p3 = Param(erosionTimes=3, extent=0.2, areamin=2, areamax=4000, dmin=1.3)
+    # # p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
+    # # # 参数设定
+    # if path == 'test/':
+    #     # 试图用不erosion的进行小结节提取,多次erosion的进行大结节提取
+    #     p0 = Param(erosionTimes=0, extent=0.1, areamin=5, areamax=14000, dmin=1.3)
+    #     p1 = Param(erosionTimes=1, extent=0.1, areamin=4, areamax=14000, dmin=1.3)
+    #     p2 = Param(erosionTimes=2, extent=0.1, areamin=2, areamax=14000, dmin=1.3)
+    #     p3 = Param(erosionTimes=3, extent=0.1, areamin=1, areamax=15000, dmin=1.3)
+    #     # p5 = Param(erosionTimes=5, areamin=2, areamax=15000, dmin=1.3)
 
     # 二值化门限设置
     th = -600
@@ -592,22 +611,18 @@ for img_file in tqdm(file_list):
                          ifplot=debugMode)
     ball2 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p2,
                          ifplot=debugMode)
-    ball3 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p3,
-                         ifplot=debugMode)
+    # ball3 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p3,
+    #                      ifplot=debugMode)
     # ball5 = ballProposal(segmented_lungs_content=segmented_lungs, nodesCenter=nodesCenter, param=p5,
     #                      ifplot=debugMode)
     #
     # ball0采用p0参数，通常候选太多，当超过1000候选，可以做erosion大量减少；忽视ball0
     if ball0.coor.shape[0] > 1000:
-        # 候选太多则ball1也忽视
-        if ball1.coor.shape[0] > 1000:
-            ball = ball2
-        else:
-            ball = repCheck(ball1, ball2)
+        ball = ball1
     else:
         ball = repCheck(ball0, ball1)
-        ball = repCheck(ball, ball2)
-    ball = repCheck(ball, ball3)
+    ball = repCheck(ball, ball2)
+    # ball = repCheck(ball, ball3)
     # ball = repCheck(ball, ball5)
     # # 要将ball的coor and dia 存储起来
     # 保存世界位置coor和dia,用于回溯输出!
@@ -625,7 +640,7 @@ for img_file in tqdm(file_list):
         mini_df = df_node[df_node["file"] == img_file]  # get all nodules associate with file
         if mini_df.shape[0] == 0:  # some files may not have a nodule--skipping those
             continue
-        nodesCenter = extractNodeCenter(mini_df, origin=origin, ifprint=True)
+        nodesCenter, dias = extractNodeCenter(mini_df, origin=origin, ifprint=True)
         # protectDistance 意义在于node 32像素范围内的ball都视为找到node
         # 这里于d无关，因为考虑到裁剪是按照固定大小32像素裁剪（前提是做spacing统一尺寸）
         nodeFound, nodeShould, nodeNegative = nodeCheck(ball=ball, nodesCenter=nodesCenter, protectDistance=32.0)
