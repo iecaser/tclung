@@ -16,10 +16,11 @@
   ​
 
 > 原unet做改动:
-> 1.网络有调整
-> 2.roi有调整；修正resize拉伸bug
-> 3.imagepreview用于查看unet输入图像情况
-> 4.noROI用于不做lung mask，代替segment..ROI.py文件功能
+>
+> 1. 网络有调整
+> 2. roi有调整；修正resize拉伸bug
+> 3. imagepreview用于查看unet输入图像情况
+> 4. noROI用于不做lung mask，代替segment..ROI.py文件功能
 
 
 
